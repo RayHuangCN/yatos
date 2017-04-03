@@ -7,22 +7,27 @@
 #include <yatos/printk.h>
 #include <yatos/tty.h>
 #include <yatos/irq.h>
+#include <yatos/list.h>
+#include <yatos/timer.h>
+
 char init_stack_space[4096 * 2];
+
+static void kernel_banch()
+{
+  printk("================================================\n\r");
+  printk("                  YatOS 0.11                    \n\r");
+  printk("              Author: Ray Huang                 \n\r");
+  printk("                      2017/4/02                 \n\r");
+  printk("================================================\n\r");
+}
 
 void kernel_start()
 {
-
-  tty_reset_cursor();
-  tty_clear();
+  tty_init();
   irq_init();
-
-
-  printk("kernel start..\n\r");
-
-  extern void irq_test();
-  irq_test();
-
-  printk("after intr\n\r");
-
+  timer_init();
+  kernel_banch();
+  irq_enable();
   while (1);
+
 }

@@ -8,8 +8,8 @@
 /********* header files *************************/
 #include <arch/irq.h>
 #include <arch/system.h>
+#include <arch/asm.h>
 irq_handler irq_vectors[IRQ_TOTAL_NUM];
-
 /********* g_function ***************************/
 
 void arch_irq_set_handler(int irq_num, irq_handler handler)
@@ -17,12 +17,37 @@ void arch_irq_set_handler(int irq_num, irq_handler handler)
   irq_vectors[irq_num] = handler;
 }
 
+void arch_irq_ack()
+{
+  pio_write(0x20, 0xa0);
+  pio_write(0x20, 0x20);
+}
+
+//init 8259a
+void arch_irq_hard_init()
+{
+  //master
+  pio_write(0x11, 0x20);
+  pio_write(0x20, 0x21);
+  pio_write(0x04, 0x21);
+  pio_write(0x01, 0x21);
+
+  //slave
+  pio_write(0x11, 0xa0);
+  pio_write(0x28, 0xa1);
+  pio_write(0x04, 0xa1);
+  pio_write(0x01, 0xa1);
+}
+
+
 void arch_irq_init(irq_handler default_handler)
 {
   int i;
   for (i = 0; i < IRQ_TOTAL_NUM; i++) {
-    irq_vectors[i] = default_handler;
+    arch_irq_set_handler(i, default_handler);
   }
+  arch_irq_hard_init();
+
   irq_init_idt_entry(0, TRAP_TYPE, 0);
   irq_init_idt_entry(1, TRAP_TYPE, 0);
   irq_init_idt_entry(2, TRAP_TYPE, 0);

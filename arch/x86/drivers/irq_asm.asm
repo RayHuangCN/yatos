@@ -1,5 +1,4 @@
     SECTION .text
-global irq_test
 
 global irq_num_0
 global irq_num_1
@@ -257,9 +256,10 @@ global irq_num_252
 global irq_num_253
 global irq_num_254
 global irq_num_255
-    global arch_irq_disable
-    global arch_irq_enable
-    extern irq_vectors
+global arch_irq_disable
+global arch_irq_enable
+
+extern irq_vectors
 
 irq_test:
     int 0x80

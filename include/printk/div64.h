@@ -18,7 +18,7 @@
  * we call a special __do_div64 helper with completely non standard
  * calling convention for arguments and results (beware).
  */
-#include <yatos/types.h>
+#include <arch/system.h>
 
 
 int ilog2(unsigned long v)

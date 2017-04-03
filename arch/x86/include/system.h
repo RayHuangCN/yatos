@@ -18,7 +18,7 @@ typedef unsigned short uint16;
 typedef unsigned char uint8;
 typedef unsigned char bool;
 typedef unsigned int size_t;
-
+#define  NULL (void *)0
 
 
 

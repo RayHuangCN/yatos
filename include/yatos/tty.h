@@ -19,4 +19,5 @@ void tty_set_cursor(struct tty_cursor * cursor);
 void tty_get_cursor(struct tty_cursor * ret);
 void tty_reset_cursor();
 void tty_clear();
+void tty_init();
 #endif

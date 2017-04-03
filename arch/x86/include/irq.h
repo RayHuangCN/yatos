@@ -10,8 +10,10 @@
 #include <arch/regs.h>
 
 #define IRQ_SYSCALL 128
-
 #define IRQ_TOTAL_NUM 256
+
+#define IRQ_8259A_VEC_START 0x20
+#define IRQ_8259A_VEC_NUM   8
 
 #define INTR_TYPE 6
 #define TRAP_TYPE 7
@@ -29,23 +31,25 @@
   }while(0)\
 
 
-
-
-
-struct irq_info
+struct irq_context
 {
+  struct regs regs;
   uint32 irq_num;
   uint32 err_code;
 };
 
 
 
-typedef void (* irq_handler)(struct irq_info , struct regs);
+typedef void (* irq_handler)(struct irq_context);
 /********* g_function ***************************/
 void arch_irq_enable(void);
 void arch_irq_disable(void);
 
 void arch_irq_init(irq_handler default_handler);
 void arch_irq_set_handler(int irq_num, irq_handler handler);
+
+void arch_irq_ack();
+
+
 
 #endif

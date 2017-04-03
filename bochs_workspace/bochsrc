@@ -21,4 +21,5 @@ log: bochsout.txt
 # disable the mouse
 mouse: enabled=0
 # enable key mapping, using US layout as default.
-keyboard: keymap=/usr/share/bochs/keymaps/x11-pc-us.map  
+keyboard: keymap=/usr/share/bochs/keymaps/x11-pc-us.map
+clock:sync=realtime,time0=938581955

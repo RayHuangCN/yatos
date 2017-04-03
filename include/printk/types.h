@@ -1,7 +1,7 @@
 
 #ifndef _TPYES_H
 #define _TPYES_H
-#include <yatos/types.h>
+#include <arch/system.h>
 #ifndef NULL
 #define		NULL	0
 #endif
