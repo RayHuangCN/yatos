@@ -24,7 +24,8 @@ struct timer_action
 void timer_init();
 int timer_register(struct timer_action * action);
 void timer_unregister(struct timer_action * action);
-
+unsigned long timer_get_click();
+void timer_action_init(struct timer_action * action);
 
 
 #endif

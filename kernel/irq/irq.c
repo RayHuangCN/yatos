@@ -21,7 +21,7 @@ static struct irq_slot irq_slots[IRQ_TOTAL_NUM];
 
 void default_irq_handler(struct irq_context irq_info)
 {
-
+  irq_disable();
 
 
   struct irq_slot * target_slot = irq_slots + irq_info.irq_num;
@@ -35,6 +35,10 @@ void default_irq_handler(struct irq_context irq_info)
   }
 
   arch_irq_ack();
+
+
+  irq_enable();
+
  }
 
 void irq_init()

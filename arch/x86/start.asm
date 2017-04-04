@@ -31,6 +31,7 @@ SECTION .start
 
 global gdt_size
 global gdt_tables
+
 extern kernel_start
 extern init_stack_space
 extern __bss_start
@@ -66,11 +67,22 @@ init_idt_base:
     mov [eax + 2], ebx
     lidt [idt_size]
 
-    ;; init sp
+init_sp:    ;; init sp
     mov esp, init_stack_space
     add esp, INIT_STACK_SIZE
-    ;; ok, now we jmp to kernel_start, a better world
-    ;; 3.
+
+    xor eax, eax
+    mov ebx, __bss_start
+    mov ecx, __bss_end
+    cmp ebx, ecx
+    je jmp_to_kernel
+init_bss:
+    mov [ebx], eax
+    add ebx, 4
+    cmp ebx, ecx
+    jne init_bss
+
+jmp_to_kernel:
     mov eax, kernel_start
     jmp eax
 

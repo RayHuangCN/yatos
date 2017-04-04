@@ -28,6 +28,6 @@ void kernel_start()
   timer_init();
   kernel_banch();
   irq_enable();
-  while (1);
 
+  while (1);
 }
