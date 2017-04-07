@@ -20,13 +20,15 @@ struct kcache
   unsigned long obj_per_page;
   struct list_head full_cache;
   struct list_head part_cache;
-
+  struct list_head kc_list_entry;
   cache_constr_fun constr;
   cache_distr_fun distr;
+
+  char name[32];
 };
 struct kcache * slab_create_cache(unsigned long size,
                                     cache_constr_fun constr,
-                                    cache_distr_fun distr);
+                                  cache_distr_fun distr, const char * name);
 
 void slab_destory_cache(struct kcache * cache);
 

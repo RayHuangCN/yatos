@@ -31,6 +31,11 @@ struct page
   unsigned long count;
   unsigned long vaddress;
   struct list_head page_list;
+  struct slab_frame
+  {
+    struct list_head first_free_obj;
+    unsigned long free_obj_num;
+  }slab;
 };
 
 void pmm_init();
