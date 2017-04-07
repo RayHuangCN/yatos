@@ -9,9 +9,13 @@
  ************************************************/
 #include <arch/system.h>
 #include <yatos/list.h>
-
+#include <yatos/mm.h>
 #define PMM_MAX_LEVE 32
 #define PMM_TOTAL_PAGE PHY_MM_SIZE / PAGE_SIZE
+
+#define PMM_PAGE_TYPE_NORMAL 0
+#define PMM_PAGE_TYPE_SLAB 1
+#define PMM_PAGE_TYPE_KMALLOC 2
 
 
 #define pmm_get_pages(page, size) (++(page->count))
@@ -29,13 +33,22 @@ struct page
 {
   unsigned long type;
   unsigned long count;
-  unsigned long vaddress;
   struct list_head page_list;
-  struct slab_frame
+
+  union
   {
-    struct list_head first_free_obj;
-    unsigned long free_obj_num;
-  }slab;
+    struct slab_frame
+    {
+      struct list_head free_list;
+      struct kcache * parent;
+    }slab_frame;
+
+    struct kmalloc_info
+    {
+      unsigned long size;
+    }kmalloc_info;
+
+  }use_for;
 };
 
 void pmm_init();

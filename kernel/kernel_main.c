@@ -10,7 +10,6 @@
 #include <yatos/list.h>
 #include <yatos/timer.h>
 #include <yatos/mm.h>
-
 static void kernel_banch()
 {
   printk("================================================\n\r");
@@ -29,6 +28,10 @@ void kernel_start()
   timer_init();
   kernel_banch();
   irq_enable();
+  slab_show_all_kcache();
+  struct list_head * s = (struct list_head *)mm_kmalloc(30);
+  mm_kfree(s);
+
 
   while (1);
 }

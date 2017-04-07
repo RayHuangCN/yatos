@@ -11,6 +11,9 @@
 #include <yatos/mm.h>
 #include <yatos/list.h>
 
+
+#define page_to_slab(page) (&(page->use_for.slab_frame))
+
 typedef void (*cache_constr_fun)(void *);
 typedef void (*cache_distr_fun)(void *);
 
@@ -38,6 +41,7 @@ void slab_free_obj(void * obj);
 
 void slab_init();
 
+void slab_show_all_kcache();
 
 
 
