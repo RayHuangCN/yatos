@@ -9,8 +9,7 @@
 #include <yatos/irq.h>
 #include <yatos/list.h>
 #include <yatos/timer.h>
-
-char init_stack_space[4096 * 2];
+#include <yatos/mm.h>
 
 static void kernel_banch()
 {
@@ -23,7 +22,9 @@ static void kernel_banch()
 
 void kernel_start()
 {
+
   tty_init();
+  mm_init();
   irq_init();
   timer_init();
   kernel_banch();

@@ -1,5 +1,8 @@
 obj-y += kernel_main.o
+obj-y += tools.o
 obj-y += printk/
 obj-y += tty/
 obj-y += irq/
 obj-y += timer/
+obj-y += task/
+obj-y += mm/
