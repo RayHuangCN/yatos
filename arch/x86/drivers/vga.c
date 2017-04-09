@@ -22,23 +22,23 @@ void vga_clean(void)
 unsigned short vga_get_cursor(void)
 {
   unsigned short ans = 0;
-  pio_write(0x0e, 0x3d4);
-  ans = pio_read(0x3d5);
+  pio_out8(0x0e, 0x3d4);
+  ans = pio_in8(0x3d5);
 
   ans <<= 8;
 
-  pio_write(0x0f, 0x3d4);
-  ans |= pio_read(0x3d5);
+  pio_out8(0x0f, 0x3d4);
+  ans |= pio_in8(0x3d5);
   return ans;
 }
 
 void vga_set_cursor(unsigned short cursor)
 {
-  pio_write(0x0e, 0x3d4);
-  pio_write(cursor >> 8, 0x3d5);
+  pio_out8(0x0e, 0x3d4);
+  pio_out8(cursor >> 8, 0x3d5);
 
-  pio_write(0x0f, 0x3d4);
-  pio_write(cursor & 0xff, 0x3d5);
+  pio_out8(0x0f, 0x3d4);
+  pio_out8(cursor & 0xff, 0x3d5);
 }
 void putc(char c)
 {

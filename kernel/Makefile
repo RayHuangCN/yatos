@@ -6,3 +6,4 @@ obj-y += irq/
 obj-y += timer/
 obj-y += task/
 obj-y += mm/
+onj-y += fs/

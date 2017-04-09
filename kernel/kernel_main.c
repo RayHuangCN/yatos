@@ -10,6 +10,7 @@
 #include <yatos/list.h>
 #include <yatos/timer.h>
 #include <yatos/mm.h>
+#include <arch/disk.h>
 static void kernel_banch()
 {
   printk("================================================\n\r");
@@ -18,6 +19,8 @@ static void kernel_banch()
   printk("                      2017/4/02                 \n\r");
   printk("================================================\n\r");
 }
+
+uint16 buffer[512];
 
 void kernel_start()
 {
@@ -28,9 +31,19 @@ void kernel_start()
   timer_init();
   kernel_banch();
   irq_enable();
-  slab_show_all_kcache();
-  struct list_head * s = (struct list_head *)mm_kmalloc(30);
-  mm_kfree(s);
+
+
+  printk("start\n\r");
+  int i, j;
+  for (i = 0 ; i < 512; i++)
+    buffer[i] = i;
+
+  disk_write(8192, 1, buffer);
+  for (i = 0 ; i < 512; i++)
+    buffer[i] = 0;
+  disk_read(8192, 1, buffer);
+  for (j = 0; j < 20; j++)
+    printk("%04x  ", buffer[j]);
 
 
   while (1);

@@ -15,9 +15,9 @@
 void arch_timer_init(unsigned long hz)
 {
   unsigned long count = 1193180  / hz ;
-  pio_write(0x36 ,0x43);
-  pio_write(count & 0xff, 0x40);
-  pio_write(count >> 8, 0x40);
+  pio_out8(0x36 ,0x43);
+  pio_out8(count & 0xff, 0x40);
+  pio_out8(count >> 8, 0x40);
 }
 
 void arch_timer_ack()

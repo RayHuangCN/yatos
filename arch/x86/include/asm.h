@@ -9,8 +9,10 @@
 ************************************************/
 
 /********* g_function ***************************/
-extern unsigned int pio_read(unsigned int address);
-extern void pio_write(unsigned int value, unsigned int address);
+extern unsigned  int pio_in8(unsigned int address);
+extern void pio_out8(unsigned int value, unsigned int address);
+extern void pio_out16(unsigned int value, unsigned int address);
+extern unsigned int  pio_in16(unsigned int address);
 
 extern void putc(char  c);
 

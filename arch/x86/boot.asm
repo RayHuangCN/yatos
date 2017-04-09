@@ -1,14 +1,12 @@
     ;; since we will into real mode,BIOS can not be used any more
-
     xor ax, ax
     mov ss, ax
-    mov sp, 0x7c00 + 512
 
     ;; 0. set up GDT
 
     mov ax, 0
     mov ds, ax
-    mov bx, 0x7e00
+    mov bx, 0x7c00 + 2048
 
     ;; item 0, must be zero
     mov dword [bx + 0], 0x00
@@ -26,9 +24,9 @@
     mov dword [bx + 28], 0x00cf9200
 
     ;; init gdt reg
-    mov word [cs:gdt_size], 31
-    mov eax, [cs:gdt_size]
-    lgdt [cs:gdt_size]
+    mov word [gdt_size + 0x7c00], 31
+    mov eax, [gdt_size + 0x7c00]
+    lgdt [gdt_size + 0x7c00]
 
     ;; 1. to readl mode
 
@@ -40,14 +38,13 @@
     ;; disable interrupt
     cli
 
-
     ;; set PE
     mov eax, cr0
     or eax, 1
     mov cr0, eax
 
     ;; jmp to read mode
-    jmp dword 0x010:flush+0x10000
+    jmp dword 0x010:flush+0x7c00
 
     [bits 32]
 flush:
@@ -57,16 +54,11 @@ flush:
     mov ss, cx
     mov es, cx
 
-
     mov esp, 0x10000 + 0x1000
-
-
-    mov eax, load_kernel_mes + 0x10000
-    call put_string
 
     mov ecx, 1024
     mov ebx, 0x100000
-    mov eax, 32
+    mov eax, 2049
 read_kernel:
     push ebx    ;buffer address
     push 0x0
@@ -86,11 +78,8 @@ read_kernel:
     dec ecx
     jnz read_kernel
 
-    ;; 3. start kernel
-    mov eax, start_kernel_mes + 0x10000
-    call put_string
-
-    jmp  [kernel_address + 0x10000]
+    ;; jmp to kernel
+    jmp  [kernel_address + 0x7c00]
 
 check_ready:
     mov  dx, 0x1f7
@@ -200,35 +189,7 @@ readw:
     pop  ebp
     ret
 
-
-put_string:
-    mov ebx, [console_cur + 0x10000]
-rep_str:
-    mov cl, [eax]
-    cmp cl, 0
-    je ret_str
-
-    mov [ebx], cl
-    inc ebx
-    mov cl, 1111_1100b
-    mov [ebx], cl
-    inc ebx
-    inc eax
-
-    jmp rep_str
-ret_str:
-    mov ebx, [console_cur + 0x10000]
-    add ebx, 2*85
-    mov [console_cur + 0x10000], ebx
-    ret
-
-
 ;; gdt_infor----------------------------------------------------------
     gdt_size    dw 0
-    gdt_base    dd 0x00007e00
-
-    load_kernel_mes    db "loading kernel from disk......",0
-    start_kernel_mes   db "starting kernel........" ,0
-
-    console_cur  dd 0xb8000
+    gdt_base    dd 0x00007c00 + 2048
     kernel_address dd 0x000100000

@@ -8,7 +8,7 @@
     ;; load
     mov dl, 0x80                ;disk
     mov ch, 0x00
-    mov cl, 10
+    mov cl, 2049
     mov dh, 0
     mov ax, 0x1000
     mov es, ax

@@ -1,10 +1,12 @@
     [bits 32]
 SECTION .text
-    global pio_read
-    global pio_write
+    global pio_out8
+    global pio_in8
+    global pio_in16
+    global pio_out16
     ;; int pio_read(address);
     ;; address port num
-pio_read:
+pio_in8:
     push ebp
     mov  ebp, esp
     push edx
@@ -18,7 +20,7 @@ pio_read:
     ret
 
     ;;void pio_write(value, address)
-pio_write:
+pio_out8:
     push ebp
     mov ebp, esp
 
@@ -34,3 +36,31 @@ pio_write:
     pop edx
     pop ebp
     ret
+pio_out16:
+    push ebp
+    mov ebp, esp
+    push edx
+    push eax
+
+    mov eax, [ebp + 8]
+    mov edx, [ebp + 12]
+
+    out dx, ax
+
+    pop eax
+    pop edx
+    pop ebp
+    ret
+
+pio_in16:
+    	push ebp
+	    mov  ebp, esp
+	    push edx
+
+	    xor eax, eax
+	    mov edx, [ebp + 8]
+	    in ax, dx
+
+	    pop edx
+	    pop  ebp
+	    ret

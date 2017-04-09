@@ -60,7 +60,7 @@ static void pmm_insert_to(struct list_head *list, struct page * page)
 static void pmm_putback_remain(struct page* remain, unsigned long size)
 {
 
-  printk("pmm_putback %u\n\r", size);
+
 
   struct page * temp = NULL;
   int pow = 0;
@@ -69,7 +69,6 @@ static void pmm_putback_remain(struct page* remain, unsigned long size)
   temp = remain;
   for (pow = 0; pow < PMM_MAX_LEVE; ++pow){
     if (((size >> pow) & 1)){
-      printk("insert %u\n\r", 1 << pow);
       pmm_insert_to(pmm_free_page_lists + pow, temp);
       temp += 1 << pow;
     }
@@ -81,7 +80,6 @@ void pmm_init()
   for (i = 0; i < PMM_MAX_LEVE; ++i)
     INIT_LIST_HEAD(pmm_free_page_lists + i);
   pmm_putback_remain(pmm_pages, FREE_PAGE_TOTAL);
-  pmm_show_useable();
 }
 
 unsigned long pmm_page_to_paddr(struct page * page){
@@ -119,9 +117,6 @@ static struct  page * pmm_do_alloc(unsigned long size, unsigned long align)
       if (block_size - (ret - cur) < size)
         continue;
 
-      printk("get from %u\n\r", 1 << i);
-      printk("target size %u\n\r", size);
-      printk("remain size %u\n\r", block_size - size);
 
       //get it
       list_del(&(cur->page_list));

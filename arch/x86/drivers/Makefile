@@ -3,3 +3,4 @@ obj-y += vga.o
 obj-y += irq.o
 obj-y += irq_asm.o
 obj-y += timer.o
+obj-y += disk.o
