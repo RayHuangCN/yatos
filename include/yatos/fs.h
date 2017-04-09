@@ -12,6 +12,8 @@
 #include <arch/system.h>
 
 
+#define FS_START_SECTOR 18432
+
 struct fs_superblock
 {
 	uint32 inodes_count;			// Total # of inodes
@@ -39,15 +41,51 @@ struct fs_superblock
 	uint32 rev_level;
 	uint32 def_resuid;
 	uint32 def_resgid;
-}__attribute__((packed));
+} __attribute__((packed));
 
 
+struct fs_block_group_desc
+{
+	uint32 block_bitmap;
+	uint32 inode_bitmap;
+	uint32 inode_table;
+	uint16 free_blocks_count;
+	uint16 free_inodes_count;
+	uint16 used_dirs_count;
+	uint16 pad[7];
+} __attribute__((packed));
 
 
+struct fs_inode
+{
+	uint16 mode;
+	uint16 uid;
+	uint32 size;
+	uint32 atime;
+	uint32 ctime;
+	uint32 mtime;
+	uint32 dtime;
+	uint16 gid;
+	uint16 links_count;
+	uint32 blocks;
+	uint32 flags;
+	uint32 osdl;
+	uint32 block[15];
+	uint32 generation;
+	uint32 file_acl;
+	uint32 dri_acl;
+	uint32 faddr;
+	uint32 osd2[3];
+} __attribute__((packed));
 
-
-
-
+struct fs_dirent
+{
+	uint32 inode;
+	uint16 rec_len;
+	uint8 name_len;
+	uint8 file_type;
+	uint8 name[];
+} __attribute__((packed));
 
 
 
