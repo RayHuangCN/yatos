@@ -10,16 +10,15 @@
 #include <yatos/list.h>
 #include <yatos/timer.h>
 #include <yatos/mm.h>
-#include <arch/disk.h>
 #include <yatos/fs.h>
 
 static void kernel_banch()
 {
-  printk("================================================\n\r");
-  printk("                  YatOS 0.11                    \n\r");
-  printk("              Author: Ray Huang                 \n\r");
-  printk("                      2017/4/02                 \n\r");
-  printk("================================================\n\r");
+  printk("================================================\n");
+  printk("                  YatOS 0.11                    \n");
+  printk("              Author: Ray Huang                 \n");
+  printk("                      2017/4/02                 \n");
+  printk("================================================\n");
 }
 
 uint16 buffer[512];
@@ -34,5 +33,20 @@ void kernel_start()
   kernel_banch();
   fs_init();
   irq_enable();
+
+  struct fs_file *ret = fs_open("huanglei/ray/work/main.c", root_dir);
+
+  if (!ret)
+    printk("can not found!\n");
+
+  char buffer[1024];
+  int n;
+  while ((n = fs_read(ret, buffer, 1024))){
+    int i;
+    for (i = 0; i < n; i++)
+      putc(buffer[i]);
+  }
+
+
   while (1);
 }

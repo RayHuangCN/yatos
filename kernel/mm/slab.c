@@ -125,15 +125,16 @@ void slab_free_obj(void* obj)
   struct list_head * obj_list = (struct list_head*)addr;
   struct page *page = vaddr_to_page(addr >> PAGE_SHIFT << PAGE_SHIFT);
   struct kcache * cache = page_to_slab(page)->parent;
+
+  if (cache->distr)
+    cache->distr(obj);
+
   if (list_empty(&(page_to_slab(page)->free_list))){
     list_del(&(page->page_list));
     list_add_tail(&(page->page_list), &(cache->part_cache));
   }
 
   list_add_tail(obj_list, &(page_to_slab(page)->free_list));
-
-  if (cache->distr)
-    cache->distr(obj);
 }
 
 

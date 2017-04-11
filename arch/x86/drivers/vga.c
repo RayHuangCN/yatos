@@ -48,8 +48,10 @@ void putc(char c)
   unsigned short cursor = vga_get_cursor();
 
   char * buffer = (char *)VGA_VMM_START;
-  if (c == '\n')
+  if (c == '\n'){
     cursor += 80;
+    cursor = cursor / 80 * 80;
+  }
   else if (c == '\r')
     cursor = cursor / 80 * 80;
   else{
