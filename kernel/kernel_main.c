@@ -11,7 +11,7 @@
 #include <yatos/timer.h>
 #include <yatos/mm.h>
 #include <yatos/fs.h>
-
+#include <yatos/task.h>
 static void kernel_banch()
 {
   printk("================================================\n");
@@ -34,19 +34,25 @@ void kernel_start()
   fs_init();
   irq_enable();
 
-  struct fs_file *ret = fs_open("huanglei/ray/work/main.c", root_dir);
+  struct fs_file *ret = fs_open("yatos.elf", root_dir);
+  if (!ret){
+    printk("can not open yatos.elf\n");
+    while (1);
+  }
+  struct exec_bin * bin = elf_parse(ret);
 
-  char buffer[100];
-  int n = fs_read(ret, buffer, 100);
-  int i;
-  for (i = 0 ; i < n; i++)
-    putc(buffer[i]);
 
+  struct list_head *cur;
+  struct section * cur_s;
+  printk("entry = %x\n", bin->entry_addr);
+  list_for_each(cur, &(bin->section_list)){
 
-  ret->inode->inode_data->i_ctime = 1234;
-  fs_write(ret, "huanglei", sizeof("huanglei"));
-  fs_sync(ret);
-
+    cur_s = container_of(cur, struct section, list_entry);
+    printk("======================\n");
+    printk("addr = %x\n", cur_s->start_vaddr);
+    printk("len = %x\n", cur_s->len);
+    printk("file_offset = %x\n", cur_s->file_offset);
+  }
 
 
   while (1);

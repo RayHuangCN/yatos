@@ -220,29 +220,30 @@ int ext2_fill_buffer(struct fs_inode* inode,struct fs_data_buffer* new_buf)
   struct ext2_inode * einode = inode->inode_data;
   uint32 block_offset = new_buf->block_offset;
   uint32 block_num;
-  if (block_offset < LEVE1_TOTAL){
+  uint32 * indirect_buffer = (uint32*)com_buffer;
+  if (block_offset < LEVE0_TOTAL){
 
     block_num = einode->i_block[block_offset];
 
   }else if (block_offset < LEVE1_TOTAL){
 
-    read_block(einode->i_block[12], com_buffer);
-    block_num = com_buffer[block_offset - 12];
+    read_block(einode->i_block[12], (uint8*)indirect_buffer);
+    block_num = indirect_buffer[block_offset - 12];
 
   }else if (block_offset < LEVE2_TOTAL){
 
-    read_block(einode->i_block[13], com_buffer);
-    block_num = com_buffer[(block_offset - 12) / LEVE1_BLOCKS];
-    read_block(block_num, com_buffer);
-    block_num = com_buffer[(block_offset -12) % LEVE1_BLOCKS];
+    read_block(einode->i_block[13], (uint8*)indirect_buffer);
+    block_num = indirect_buffer[(block_offset - 12) / LEVE1_BLOCKS];
+    read_block(block_num, (uint8*)indirect_buffer);
+    block_num = indirect_buffer[(block_offset -12) % LEVE1_BLOCKS];
 
   }else{
-    read_block(einode->i_block[14] , com_buffer);
-    block_num = com_buffer[(block_offset - 12) / LEVE2_BLOCKS];
-    read_block(block_num, com_buffer);
-    block_num = com_buffer[((block_offset - 12) % LEVE2_BLOCKS) / LEVE1_BLOCKS];
-    read_block(block_num, com_buffer);
-    block_num = com_buffer[((block_offset - 12) % LEVE2_BLOCKS) % LEVE1_BLOCKS];
+    read_block(einode->i_block[14] , (uint8*)indirect_buffer);
+    block_num = indirect_buffer[(block_offset - 12) / LEVE2_BLOCKS];
+    read_block(block_num, (uint8*)indirect_buffer);
+    block_num = indirect_buffer[((block_offset - 12) % LEVE2_BLOCKS) / LEVE1_BLOCKS];
+    read_block(block_num, (uint8*)indirect_buffer);
+    block_num = indirect_buffer[((block_offset - 12) % LEVE2_BLOCKS) % LEVE1_BLOCKS];
   }
   read_block(block_num, new_buf->buffer);
   new_buf->ext2_block_num = block_num;

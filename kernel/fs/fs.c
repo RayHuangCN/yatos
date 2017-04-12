@@ -253,7 +253,7 @@ int fs_read(struct fs_file* file,char* buffer,unsigned long count)
   uint32 cpy_size;
   uint32 buffer_size = ext2_get_block_size();
   while (count){
-    block_offset = off_set / buffer_size * buffer_size;
+    block_offset = off_set / buffer_size;
     buff_offset = off_set % buffer_size;
     buf = fs_inode_get_buffer(inode, block_offset);
     cpy_size = buffer_size - buff_offset;
@@ -304,4 +304,25 @@ int fs_write(struct fs_file* file,char* buffer,unsigned long count)
 void fs_sync(struct fs_file *file)
 {
   ext2_sync_data(file->inode);
+}
+
+
+
+off_t fs_seek(struct fs_file* file,off_t offset,int whence)
+{
+
+  switch(whence){
+  case SEEK_SET:
+    file->cur_offset = offset;
+    return file->cur_offset;
+  case SEEK_CUR:
+    file->cur_offset += offset;
+    if (file->cur_offset < 0)
+      file->cur_offset = 0;
+    return file->cur_offset;
+  case SEEK_END:
+    file->cur_offset = file->inode->inode_data->i_size + offset;
+    return file->cur_offset;
+  }
+  return -1;
 }

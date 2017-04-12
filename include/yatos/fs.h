@@ -13,6 +13,14 @@
 #include <yatos/ext2.h>
 
 
+typedef int off_t;
+
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
+
+
 struct fs_data_buffer
 {
 	unsigned long flag;
@@ -40,7 +48,7 @@ struct fs_inode
 
 struct fs_file
 {
-	unsigned long cur_offset;
+	off_t cur_offset;
 	unsigned long open_flag;
 	unsigned long count;
 	struct fs_inode * inode;
@@ -56,7 +64,7 @@ int fs_write(struct fs_file * file, char * buffer, unsigned long count);
 void fs_close(struct fs_file * file);
 void fs_sync(struct fs_file *file);
 
-
+off_t fs_seek(struct fs_file * file, off_t offset, int whence);
 
 
 
