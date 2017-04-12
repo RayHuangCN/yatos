@@ -22,6 +22,11 @@ struct fs_data_buffer
 	uint8 * buffer;
 };
 
+#define BUFFER_DIRTY_MASK 0x1
+#define BUFFER_IS_DIRTY(buff) (buff->flag & BUFFER_DIRTY_MASK)
+#define BUFFER_SET_DIRTY(buff) (buff->flag |= BUFFER_DIRTY_MASK)
+#define BUFFER_CLER_DIRTY(buff) (buff->flag &= ~BUFFER_DIRTY_MASK)
+
 struct fs_inode
 {
 	unsigned long inode_num;

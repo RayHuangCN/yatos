@@ -273,8 +273,7 @@ int fs_write(struct fs_file* file,char* buffer,unsigned long count)
 {
   struct fs_inode * inode  = file->inode;
   uint32 off_set = file->cur_offset;
-  if (off_set > inode->inode_data->i_size)
-    inode->inode_data->i_size = off_set;
+
 
   uint32 write_count = 0;
   uint32 block_offset;
@@ -286,6 +285,7 @@ int fs_write(struct fs_file* file,char* buffer,unsigned long count)
     block_offset = off_set / buffer_size * buffer_size;
     buff_offset = off_set % buffer_size;
     buf = fs_inode_get_buffer(inode, block_offset);
+    BUFFER_SET_DIRTY(buf);
     cpy_size = buffer_size - buff_offset;
     if (cpy_size > count)
       cpy_size = count;
@@ -296,6 +296,8 @@ int fs_write(struct fs_file* file,char* buffer,unsigned long count)
     count -= cpy_size;
   }
   file->cur_offset += write_count;
+  if (write_count && file->cur_offset > inode->inode_data->i_size)
+    inode->inode_data->i_size = file->cur_offset;
   return write_count;
 }
 

@@ -36,16 +36,17 @@ void kernel_start()
 
   struct fs_file *ret = fs_open("huanglei/ray/work/main.c", root_dir);
 
-  if (!ret)
-    printk("can not found!\n");
+  char buffer[100];
+  int n = fs_read(ret, buffer, 100);
+  int i;
+  for (i = 0 ; i < n; i++)
+    putc(buffer[i]);
 
-  char buffer[1024];
-  int n;
-  while ((n = fs_read(ret, buffer, 1024))){
-    int i;
-    for (i = 0; i < n; i++)
-      putc(buffer[i]);
-  }
+
+  ret->inode->inode_data->i_ctime = 1234;
+  fs_write(ret, "huanglei", sizeof("huanglei"));
+  fs_sync(ret);
+
 
 
   while (1);

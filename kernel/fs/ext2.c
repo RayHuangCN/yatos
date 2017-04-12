@@ -48,6 +48,12 @@ static void read_block(uint32 block_num, uint8  * buffer)
   disk_read(sec, sector_per_block, (uint16*)buffer);
 }
 
+static void write_block(uint32 block_num, uint8 *buffer)
+{
+  uint32 sec = BLOCK_TO_SECTOR(block_num);
+  disk_write(sec, sector_per_block, (uint16*)buffer);
+}
+
 static struct ext2_inode * ext2_get_inode_by_num(uint32 num)
 {
   struct ext2_inode *ret = slab_alloc_obj(inode_cache);
@@ -65,6 +71,20 @@ static struct ext2_inode * ext2_get_inode_by_num(uint32 num)
   uint32 b_offset = (g_offset % INODE_NUM_PER_BLOCK) * INODE_SIZE;
   memcpy(ret, com_buffer + b_offset , sizeof(*ret));
   return ret;
+}
+
+static void ext2_write_inode(uint32 num, struct ext2_inode * inode)
+{
+  struct ext2_group_desc * gdesc = fs_group_infos + (num - 1) / fs_sb->s_inodes_per_group;
+  uint32 g_offset = (num - 1) % fs_sb->s_inodes_per_group;
+  uint32 block = g_offset / INODE_NUM_PER_BLOCK + gdesc->bg_inode_table;
+
+  read_block(block, com_buffer);
+
+  uint32 b_offset = (g_offset % INODE_NUM_PER_BLOCK) * INODE_SIZE;
+  memcpy(com_buffer + b_offset, inode, sizeof(*inode));
+
+  write_block(block, com_buffer);
 }
 
 
@@ -115,6 +135,8 @@ static void ext2_init_caches()
 }
 
 
+
+
 void ext2_init()
 {
   com_buffer = (uint8*)mm_kmalloc(4096);
@@ -126,7 +148,17 @@ void ext2_init()
 
 void ext2_sync_data(struct fs_inode* inode)
 {
-
+  //update all block buffer;
+  struct list_head *cur;
+  struct fs_data_buffer * cur_buffer;
+  list_for_each(cur, &(inode->data_buffers)){
+    cur_buffer = container_of(cur, struct fs_data_buffer, list_entry);
+    if (!BUFFER_IS_DIRTY(cur_buffer))
+        continue;
+    write_block(cur_buffer->ext2_block_num, cur_buffer->buffer);
+    BUFFER_CLER_DIRTY(cur_buffer);
+  }
+  ext2_write_inode(inode->inode_num, inode->inode_data);
 }
 
 int ext2_find_file(const char *name, struct fs_inode * parent, struct fs_inode *ret)
@@ -137,6 +169,7 @@ int ext2_find_file(const char *name, struct fs_inode * parent, struct fs_inode *
   uint8 * cur_iter;
   struct ext2_dir_entry_2 * cur_dentry;
   struct ext2_inode * ret_inode;
+  uint32 inode_num;
   while (file_size){
     //direct
     int i;
@@ -145,8 +178,10 @@ int ext2_find_file(const char *name, struct fs_inode * parent, struct fs_inode *
       cur_iter = com_buffer;
       while (cur_iter < com_buffer + block_size){
         cur_dentry = (struct ext2_dir_entry_2*)cur_iter;
-        if (!strncmp(cur_dentry->name, name, cur_dentry->name_len))
-            goto found;
+        if (!strncmp(cur_dentry->name, name, cur_dentry->name_len)){
+          inode_num = cur_dentry->inode;
+          goto found;
+        }
         cur_iter += cur_dentry->rec_len;
         file_size-= cur_dentry->rec_len;
       }
@@ -158,11 +193,11 @@ int ext2_find_file(const char *name, struct fs_inode * parent, struct fs_inode *
   return 0;
 
 found:
-  ret_inode = ext2_get_inode_by_num(cur_dentry->inode);
+  ret_inode = ext2_get_inode_by_num(inode_num);
   if (!ret_inode)
     return 0;
 
-  ret->inode_num = cur_dentry->inode;
+  ret->inode_num = inode_num;
   ret->inode_data = ret_inode;
   return 1;
 }
