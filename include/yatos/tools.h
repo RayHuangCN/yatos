@@ -10,6 +10,7 @@
 
 /********* header files *************************/
 #include <arch/system.h>
+#include <printk/string.h>
 
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #define container_of(ptr, type, member) ({                      \

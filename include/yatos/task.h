@@ -12,6 +12,11 @@
 #include <yatos/list.h>
 #include <yatos/mm.h>
 #include <yatos/fs.h>
+#include <yatos/bitmap.h>
+#include <yatos/task_vmm.h>
+
+
+#define KERNAL_STACK_SIZE (PAGE_SIZE<<1)
 
 #define TASK_STATE_RUN 1
 #define TASK_STATE_STOP 2
@@ -24,6 +29,10 @@
 
 
 #define MAX_OPEN_FD 64
+#define MAX_PID_NUM 256
+
+
+#define MAX_TASK_RUN_CLICK 5
 
 struct section
 {
@@ -49,7 +58,6 @@ struct task
   //task manage
   unsigned long state;
   unsigned long pid;
-  unsigned long ppid;
   struct list_head task_list_entry;
   struct task * parent;
   struct list_head childs;
@@ -60,17 +68,23 @@ struct task
 
   //exec and mm
   struct ext_bin * bin;
-
+  unsigned long kernel_stack;
+  struct task_vmm_info * mm_info;
 
   //opened file
   struct file * files[MAX_OPEN_FD];
-  uint32 fd_map[MAX_OPEN_FD / 32];
-
+  struct bitmap * fd_map;
   //signal
 };
 
 
 
+struct task * task_get_cur();
 
+void task_init();
+
+void task_setup_init(const char * path);
+
+void task_schedule();
 
 #endif

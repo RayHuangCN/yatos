@@ -34,9 +34,9 @@ void kernel_start()
   fs_init();
   irq_enable();
 
-  struct fs_file *ret = fs_open("yatos.elf", root_dir);
+  struct fs_file *ret = fs_open("/sbin/init", root_dir);
   if (!ret){
-    printk("can not open yatos.elf\n");
+    printk("can not open init\n");
     while (1);
   }
   struct exec_bin * bin = elf_parse(ret);

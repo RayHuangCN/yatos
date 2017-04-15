@@ -351,5 +351,4 @@ typedef struct elf32_note {
 
 struct exec_bin * elf_parse(struct fs_file * file);
 
-
 #endif

@@ -216,7 +216,7 @@ static struct fs_data_buffer * fs_inode_get_buffer(struct fs_inode * fs_inode, u
       break;
   }
 
-  //can not foud, add new
+  //can not found, add new
   struct fs_data_buffer * buf = slab_alloc_obj(data_buffer_cache);
   if (!buf)
     return NULL;
