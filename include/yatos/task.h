@@ -31,6 +31,10 @@
 #define MAX_OPEN_FD 64
 #define MAX_PID_NUM 256
 
+#define TASK_USER_STACK_START 0xc0000000
+#define TASK_USER_STACK_LEN   0x40000000
+#define TASK_USER_HEAP_START (0xc0000000 - 0x80000000)
+#define TASK_USER_HEAP_DEAULT_LEN (PAGE_SIZE << 12) //16Mb x
 
 #define MAX_TASK_RUN_CLICK 5
 
@@ -59,15 +63,17 @@ struct task
   unsigned long state;
   unsigned long pid;
   struct list_head task_list_entry;
+  struct list_head run_list_entry;
   struct task * parent;
   struct list_head childs;
   struct list_head child_list_entry;
 
   //schedule
   unsigned long remain_click;
+  unsigned long need_sched;
 
   //exec and mm
-  struct ext_bin * bin;
+  struct exec_bin * bin;
   unsigned long kernel_stack;
   struct task_vmm_info * mm_info;
 
@@ -87,4 +93,6 @@ void task_setup_init(const char * path);
 
 void task_schedule();
 
+struct exec_bin * task_new_exec_bin();
+struct section * task_new_section();
 #endif

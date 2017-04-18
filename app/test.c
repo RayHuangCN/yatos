@@ -5,10 +5,15 @@
  *   Desc  : test
  ************************************************/
 #include <unistd.h>
-int a;
-int b = 3;
+
+void sys_call()
+{
+  asm("int $0x80\n");
+}
+
 int main(int argc, char **argv)
 {
-  b = 3;
-  return 0;
+  while (1){
+    sys_call();
+  }
 }

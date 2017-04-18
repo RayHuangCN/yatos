@@ -11,16 +11,11 @@
 #include <yatos/fs.h>
 #include <yatos/mm.h>
 
-
-
-
-
-
 struct exec_bin * elf_parse(struct fs_file* file)
 {
   //read head
   Elf32_Ehdr * elf_head = mm_kmalloc(sizeof(Elf32_Ehdr));
-  struct exec_bin * bin = mm_kmalloc(sizeof(struct exec_bin));
+  struct exec_bin * bin = task_new_exec_bin();
   if (!elf_head || !bin)
     return NULL;
 
@@ -32,10 +27,9 @@ struct exec_bin * elf_parse(struct fs_file* file)
     return NULL;
   }
 
-  bin->count = 1;
   bin->entry_addr = elf_head->e_entry;
   bin->exec_file = file;
-  INIT_LIST_HEAD(&(bin->section_list));
+
 
   //search all sections
   uint32 i;
@@ -54,7 +48,7 @@ struct exec_bin * elf_parse(struct fs_file* file)
   for (i = 0 ; i < elf_head->e_shnum; i++){
     if (secs[i].sh_flags & SHF_ALLOC){
 
-      struct section * new_sec = mm_kmalloc(sizeof(struct section));
+      struct section * new_sec = task_new_section();
       new_sec->file_offset = secs[i].sh_offset;
       new_sec->start_vaddr = secs[i].sh_addr;
       new_sec->len = secs[i].sh_size;

@@ -110,6 +110,7 @@ void * slab_alloc_obj(struct kcache* cache)
     list_add_tail(ret_page_list, &(cache->full_cache));
   }
 
+  memset(ret_obj, 0, cache->obj_size);
   if (cache->constr)
     cache->constr((void *)ret_obj);
 

@@ -19,7 +19,7 @@ struct bitmap * bitmap_create(uint32 count)
 
   memset(bm, 0, allc_size);
   bm->count = count;
-  return bm->map;
+  return bm;
 }
 
 
@@ -33,7 +33,7 @@ struct bitmap *  bitmap_clone(struct bitmap * from)
 {
   uint32 alloc_size = (from->count + 31) / 32 * 4 + 4;
   struct bitmap * new = mm_kmalloc(alloc_size);
-  memcpy(new, bm, alloc_size);
+  memcpy(new, from, alloc_size);
   return new;
 }
 

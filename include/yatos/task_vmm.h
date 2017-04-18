@@ -10,19 +10,16 @@
 #include <arch/system.h>
 #include <yatos/list.h>
 
-
 struct task_vmm_area
 {
   unsigned long start_addr;
   unsigned long len;
   unsigned long flag; //write ? executeable ?
   void *private;
-  struct list_hread list_entry;
-
-  void (* open)(struct task_vmm_area * vmm_area);
-  void (* do_page_fault)(struct task_vmm_area* vmm_area, unsigned long fault_addr);
-  void (* close)(struct task_vmm_area * vmm_area);
-
+  struct list_head list_entry;
+  struct task_vmm_info * mm_info;
+  void (*do_no_page)(struct task_vmm_area * area, unsigned long addr);
+  void (*close)(struct task_vmm_area *area);
 };
 
 struct task_vmm_info
@@ -42,15 +39,13 @@ void task_put_vmm_info(struct task_vmm_info * vmm_info);
 
 //just get a task_vmm_area
 struct task_vmm_area * task_new_pure_area();
+void task_free_area(struct task_vmm_area *area);
 
 //alloc a area from vmm space
-struct task_vmm_area * task_alloc_area(int len);
+struct task_vmm_area * task_alloc_area(struct task_vmm_info * mm_info, int len);
 
-void task_free_pure_area(struct task_vmm_area * area);
+int task_insert_area(struct task_vmm_info * vmm_info, struct task_vmm_area * area);
 
-int task_install_area(struct task_vmm_info * vmm_info, struct task_vmm_area * area);
-
-
-
+struct task_vmm_area * task_vmm_search_area(struct task_vmm_info * mm_info, unsigned long start_addr);
 
 #endif
