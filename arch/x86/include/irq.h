@@ -9,6 +9,7 @@
  ************************************************/
 #include <arch/regs.h>
 
+#define IRQ_PAGE_FAULT 14
 #define IRQ_SYSCALL 128
 #define IRQ_TOTAL_NUM 256
 
@@ -30,17 +31,7 @@
     idt_base[(num<<1) + 1] = high;\
   }while(0)\
 
-
-struct irq_context
-{
-  struct regs regs;
-  uint32 irq_num;
-  uint32 err_code;
-};
-
-
-
-typedef void (* irq_handler)(struct irq_context);
+typedef void (* irq_handler)(struct pt_regs);
 /********* g_function ***************************/
 void arch_irq_enable(void);
 void arch_irq_disable(void);

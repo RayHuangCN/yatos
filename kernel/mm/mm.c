@@ -8,7 +8,7 @@
 #include <yatos/pmm.h>
 #include <yatos/tools.h>
 #include <yatos/printk.h>
-#include <arch/mm.h>
+#include <arch/mmu.h>
 struct kcache * kmalloc_caches[MAX_KMALLOC_SLAB_LEVE];
 
 static void kmalloc_init()
@@ -36,7 +36,7 @@ unsigned long vaddr_to_paddr(unsigned long vaddr)
 
 void mm_init()
 {
-  mm_arch_init();
+  mmu_init();
   pmm_init();
   slab_init();
   kmalloc_init();

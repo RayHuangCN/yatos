@@ -8,13 +8,7 @@
 #include <arch/task.h>
 #include <arch/regs.h>
 static struct tss task_tss = {
-  .ss0 = GDT_USER_DS,
-  .ds = GDT_USER_DS,
-  .cs = GDT_USER_CS,
-  .es = GDT_USER_DS,
-  .gs = GDT_USER_DS,
-  .fs = GDT_USER_DS
-
+  .ss0 = GDT_KERNEL_DS,
 };
 
 void task_arch_init()

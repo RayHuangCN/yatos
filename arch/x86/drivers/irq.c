@@ -176,7 +176,7 @@ void arch_irq_init(irq_handler default_handler)
   irq_init_idt_entry(125, INTR_TYPE, 0);
   irq_init_idt_entry(126, INTR_TYPE, 0);
   irq_init_idt_entry(127, INTR_TYPE, 0);
-  irq_init_idt_entry(128, INTR_TYPE, 0);
+  irq_init_idt_entry(128, INTR_TYPE, 3);
   irq_init_idt_entry(129, INTR_TYPE, 0);
   irq_init_idt_entry(130, INTR_TYPE, 0);
   irq_init_idt_entry(131, INTR_TYPE, 0);

@@ -310,7 +310,7 @@ arch_irq_disable:
     SAVE_REGS
     CALL_VECTOR_HANDLER %1
     RESTOR_REGS
-    add esp, 4
+    add esp, 8
     iretd
 %endmacro
 

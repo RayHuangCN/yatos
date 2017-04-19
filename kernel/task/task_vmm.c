@@ -7,8 +7,13 @@
 #include <arch/system.h>
 #include <yatos/mm.h>
 #include <yatos/task_vmm.h>
+#include <yatos/task.h>
+#include <yatos/irq.h>
+#include <arch/mmu.h>
 static struct kcache * vmm_info_cache;
 static struct kcache * vmm_area_cache;
+
+static struct irq_action page_fault_action;
 
 
 
@@ -46,6 +51,76 @@ static void vmm_area_distr(void *arg)
 }
 
 
+static void task_segment_error()
+{
+
+}
+
+static void page_access_fault(unsigned long addr, uint32 ecode)
+{
+
+}
+
+static void page_fault_no_page(unsigned long fault_addr)
+{
+  struct task * cur_task = task_get_cur();
+  struct task_vmm_info * mm_info = cur_task->mm_info;
+  unsigned long fault_page_addr = PAGE_ALIGN(fault_addr);
+
+  uint32 new_page_vaddr = (uint32)mm_kmalloc(PAGE_SIZE);
+  if (!new_page_vaddr){
+    task_segment_error();
+    return ;
+  }
+
+  uint32 new_page_paddr = vaddr_to_paddr(new_page_vaddr);
+  uint32 writeable = 0;
+
+
+  //now we should init the content of new page
+  //content come from do_no_page function  of vmm_areas
+  //if any vmm_area is writable, this page should be wirteable.
+
+  struct list_head *cur;
+  struct task_vmm_area *area;
+  list_for_each(cur, &(mm_info->vmm_area_list)){
+    area = container_of(cur, struct task_vmm_area, list_entry);
+    if ((area->start_addr >= fault_page_addr
+         && area->start_addr < fault_page_addr + PAGE_SIZE)
+        ||
+        (area->start_addr + area->len >= fault_page_addr
+         && area->start_addr + area->len <= fault_page_addr + PAGE_SIZE)
+        ||
+        (area->start_addr < fault_page_addr
+         && area->start_addr + area->len >= fault_page_addr + PAGE_SIZE)){
+
+      if (area->flag & SECTION_WRITE)
+        writeable = 1;
+      if (area->do_no_page)
+        area->do_no_page(area,fault_addr, (char *)new_page_vaddr);
+    }else if (area->start_addr >= fault_page_addr + PAGE_SIZE)
+      break;
+  }
+
+  //now we setup mapping
+  if (mmu_map(mm_info->mm_table_paddr, fault_addr, new_page_paddr, writeable))
+    task_segment_error();
+}
+
+static void task_vmm_page_fault(void *private, struct pt_regs * irq_context)
+{
+  uint32 ecode = irq_context->erro_code;
+  unsigned long fault_addr = mmu_page_fault_addr();
+
+  if (fault_addr >= KERNEL_VMM_START)
+    task_segment_error();
+  else if (ecode & 1)
+    page_access_fault(fault_addr, ecode);
+  else
+    page_fault_no_page(fault_addr);
+}
+
+
 void task_vmm_init()
 {
   vmm_info_cache = slab_create_cache(sizeof(struct task_vmm_info), vmm_info_constr, vmm_info_distr, "vmm_info cache");
@@ -53,6 +128,11 @@ void task_vmm_init()
 
   if (!vmm_info_cache || !vmm_area_cache)
     go_die("can not task cache error\n");
+
+  //init page fault
+  irq_action_init(&page_fault_action);
+  page_fault_action.action = task_vmm_page_fault;
+  irq_regist(IRQ_PAGE_FAULT, &page_fault_action);
 }
 
 struct task_vmm_info * task_new_vmm_info()

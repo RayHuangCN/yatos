@@ -1,7 +1,6 @@
     [bits 32]
 SECTION .text
     global task_arch_launch
-
 task_arch_launch:
     push ebp
     mov ebp, esp
@@ -14,7 +13,10 @@ task_arch_launch:
     push 0x2b                   ;ss
     mov eax, [ebp + 12]         ;esp
     push eax
-    push 0x202                  ;eflags
+    pushfd                  ;eflags
+    pop eax
+    or eax, 0x200
+    push eax
     push 0x23                   ;cs
     mov eax, [ebp + 8]          ;eip
     push eax

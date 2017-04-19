@@ -19,7 +19,7 @@ static struct list_head action_list;
 static struct irq_action timer_irq_ac;
 static unsigned long timer_click;
 /********* g_function ***************************/
-void timer_irq_handler(void * private, struct irq_context *irq_context)
+void timer_irq_handler(void * private, struct pt_regs *irq_context)
 {
 
   struct list_head * cur = NULL;

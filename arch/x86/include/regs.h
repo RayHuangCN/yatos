@@ -11,7 +11,7 @@
 #include <arch/system.h>
 
 /********* g_define *****************************/
-struct regs
+struct pt_regs
 {
   uint32 ebx;
   uint32 ecx;
@@ -22,6 +22,13 @@ struct regs
   uint32 eax;
   uint32 ds;
   uint32 es;
+  uint32 irq_num;
+  uint32 erro_code;
+  uint32 eip;
+  uint32 cs;
+  uint32 eflags;
+  uint32 esp;
+  uint32 ss;
 };
 
 struct tss

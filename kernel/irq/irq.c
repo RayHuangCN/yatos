@@ -19,12 +19,9 @@ static struct irq_slot irq_slots[IRQ_TOTAL_NUM];
 
 /********* g_function ***************************/
 
-void default_irq_handler(struct irq_context irq_info)
+void default_irq_handler(struct pt_regs irq_info)
 {
   irq_disable();
-  if (irq_info.irq_num == 14)
-  printk("%d irq\n", irq_info.irq_num);
-
   struct irq_slot * target_slot = irq_slots + irq_info.irq_num;
   struct list_head * pos = NULL;
   struct irq_action * cur_action = NULL;

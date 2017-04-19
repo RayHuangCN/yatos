@@ -18,7 +18,7 @@ struct task_vmm_area
   void *private;
   struct list_head list_entry;
   struct task_vmm_info * mm_info;
-  void (*do_no_page)(struct task_vmm_area * area, unsigned long addr);
+  void (*do_no_page)(struct task_vmm_area * area, unsigned long addr, char * new_page);
   void (*close)(struct task_vmm_area *area);
 };
 
@@ -26,6 +26,8 @@ struct task_vmm_info
 {
   unsigned long count;
   unsigned long mm_table_paddr;
+  struct task_vmm_area * stack;
+  struct task_vmm_area * heap;
   struct list_head vmm_area_list;
 };
 

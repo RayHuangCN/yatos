@@ -15,7 +15,7 @@
 struct irq_action
 {
   void *private_data;
-  void (*action)(void *private_data, struct irq_context * context);
+  void (*action)(void *private_data, struct pt_regs * context);
   struct list_head list;
 };
 struct irq_slot
