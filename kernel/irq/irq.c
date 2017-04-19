@@ -22,7 +22,8 @@ static struct irq_slot irq_slots[IRQ_TOTAL_NUM];
 void default_irq_handler(struct irq_context irq_info)
 {
   irq_disable();
-
+  if (irq_info.irq_num == 14)
+  printk("%d irq\n", irq_info.irq_num);
 
   struct irq_slot * target_slot = irq_slots + irq_info.irq_num;
   struct list_head * pos = NULL;
@@ -35,10 +36,7 @@ void default_irq_handler(struct irq_context irq_info)
   }
 
   arch_irq_ack();
-
-
   irq_enable();
-
  }
 
 void irq_init()
@@ -50,6 +48,7 @@ void irq_init()
     irq_slots[i].flag = 0;
   }
   arch_irq_init(default_irq_handler);
+
 }
 
 void irq_disable()

@@ -5,14 +5,19 @@ SECTION .text
 task_arch_launch:
     push ebp
     mov ebp, esp
-
-    mov eax, [ebp + 12]         ;change stack
-    mov esp, eax
-    mov eax, 0x202
-    push eax                    ;eflag
-    mov eax, 0x23               ;cs
+    mov ax, 0x2B
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    ;; set up iret stack content
+    push 0x2b                   ;ss
+    mov eax, [ebp + 12]         ;esp
     push eax
+    push 0x202                  ;eflags
+    push 0x23                   ;cs
     mov eax, [ebp + 8]          ;eip
     push eax
-    mov eax, 0x2b               ;ds
+
+    ;; goto user space
     iret

@@ -60,8 +60,11 @@ typedef unsigned int size_t;
 #define GDT_BASE (KERNEL_END - PAGE_SIZE)
 #define GDT_KERNEL_CS 0x10
 #define GDT_KERNEL_DS 0X18
-#define GDT_USER_CS 0x23b
+#define GDT_USER_CS 0x23
 #define GDT_USER_DS 0x2B
+#define GDT_TSS 0x30
+#define GDT_TSS_BASE (GDT_BASE + 48)
+
 
 #define IDT_BASE (GDT_BASE - PAGE_SIZE)
 

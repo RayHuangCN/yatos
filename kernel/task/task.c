@@ -63,6 +63,7 @@ static void exec_bin_distr(void *arg)
 
 void task_init()
 {
+  task_arch_init();
   task_cache = slab_create_cache(sizeof(struct task), task_constr, task_distr, "task cache");
   bin_cache = slab_create_cache(sizeof(struct exec_bin), exec_bin_constr, exec_bin_distr, "bin cache");
   section_cache = slab_create_cache(sizeof(struct section), NULL, NULL, "section cache");
@@ -230,8 +231,10 @@ void task_setup_init(const char* path)
   task_add_new_task(init);
   task_current = init;
 
+
+  task_arch_befor_launch(init);
   //this function never return
-  task_arch_launch(init->bin->entry_addr, init->kernel_stack);
+  task_arch_launch(init->bin->entry_addr, TASK_USER_STACK_START);
   /******** never back here ***********************/
 
  init_mm_error:

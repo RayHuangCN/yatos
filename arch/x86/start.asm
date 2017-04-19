@@ -3,7 +3,7 @@ SECTION .start
 
     PAGE_SIZE         equ 0x1000
     PHY_START_ADDRESS equ 0x100000 ;1MB not used
-    PHY_SIZE          equ 0x100000 * 127 ;127MB
+    PHY_SIZE          equ 0x100000 * 124 ;124MB
     KERNEL_SIZE       equ 0x400000 ;4MB kernel
     KERNEL_PHY_START  equ 0x100000
     KERNEL_PHY_END    equ PHY_START_ADDRESS + KERNEL_SIZE
@@ -95,7 +95,16 @@ init_mmu_table:
     push ecx
     push edx
 
-    mov ebx, PDT_TABLE_START + (VMM_START_ADDRESS / PER_PDT_ENTRY_MM_SIZE) * PDT_ENTRY_SIZE
+    mov ebx, PDT_TABLE_START
+    xor eax, eax
+    mov ecx, PDT_TABLE_SIZE / PDT_ENTRY_SIZE
+clean_pdt:
+    mov [ebx], eax
+    add ebx, PDT_ENTRY_SIZE
+    dec ecx
+    jnz clean_pdt
+
+   	mov ebx, PDT_TABLE_START + (VMM_START_ADDRESS / PER_PDT_ENTRY_MM_SIZE) * PDT_ENTRY_SIZE
     mov eax, PET_TABLES_START
     add eax, 0x3
     mov ecx, PHY_SIZE / PER_PDT_ENTRY_MM_SIZE;how many PET page we need
@@ -184,13 +193,13 @@ init_gdt_table:
     mov dword [eax + 40], 0x0000ffff
     mov dword [eax + 44], 0x00cff200
 
-    ;; end
+
+    ;; tss, not init here
     mov dword [eax + 48], 0x00
     mov dword [eax + 52], 0x00
 
-
     mov [gdt_base], eax
-    mov ax, 47
+    mov ax, 55
     mov [gdt_size], ax
     jmp init_gdt_ok
 

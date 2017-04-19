@@ -25,7 +25,6 @@ uint16 buffer[512];
 
 void kernel_start()
 {
-
   tty_init();
   mm_init();
   irq_init();
@@ -33,9 +32,6 @@ void kernel_start()
   kernel_banch();
   fs_init();
   task_init();
-  irq_enable();
-
   task_setup_init("sbin/init");
-
   while (1);
 }

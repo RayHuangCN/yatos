@@ -5,3 +5,5 @@ obj-y += irq_asm.o
 obj-y += timer.o
 obj-y += disk.o
 obj-y += task_asm.o
+obj-y += task.o
+obj-y += mm.o

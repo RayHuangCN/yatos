@@ -8,7 +8,9 @@
  *   Desc  : low level task manager interface
  ************************************************/
 #include <arch/system.h>
-
+#include <yatos/task.h>
 void task_arch_launch(unsigned long start_addr, unsigned long stack);
+void task_arch_init();
+void task_arch_befor_launch(struct task * task);
 
 #endif
