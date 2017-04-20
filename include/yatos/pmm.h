@@ -34,7 +34,7 @@ struct page
   unsigned long type;
   unsigned long count;
   struct list_head page_list;
-
+  void * private;
   union
   {
     struct slab_frame
@@ -47,7 +47,6 @@ struct page
     {
       unsigned long size;
     }kmalloc_info;
-
   }use_for;
 };
 

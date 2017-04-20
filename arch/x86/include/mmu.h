@@ -10,6 +10,10 @@
 #include <arch/system.h>
 #include <arch/regs.h>
 
+#define PDT_MAX_NUM (PAGE_SIZE / 4)
+#define PET_MAX_NUM (PAGE_SIZE / 4)
+#define USER_SPACE_PDT_MAX_NUM (256 * 3)
+
 
 #define get_pdt_entry(pdt_table_addr, target_addr) \
   (((uint32 *)pdt_table_addr)[target_addr >> 22])
@@ -34,6 +38,12 @@
 
 #define get_page_addr(pet_e)\
   (pet_e & ~(0xfff))
+
+#define pet_writable(pet_e) \
+  (pet_e & 0x2)
+
+#define clr_writable(pet_e)\
+  (pet_e &= ~0x2)
 
 int mmu_map(unsigned long pdt, unsigned long vaddr, unsigned long paddr, unsigned long rw);
 void mmu_init();

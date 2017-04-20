@@ -1,19 +1,14 @@
+#ifndef __MYGLIB_STDLIB_H
+#define __MYGLIB_STDLIB_H
+
 /*************************************************
  *   Author: Ray Huang
- *   Date  : 2017/4/13
+ *   Date  : 2017/4/20
  *   Email : rayhuang@126.com
- *   Desc  : test
+ *   Desc  : stdlib
  ************************************************/
 #include <unistd.h>
 
-void sys_call()
-{
-  asm("int $0x80\n");
-}
+void  exit(int status);
 
-int main(int argc, char **argv)
-{
-  while (1){
-    sys_call();
-  }
-}
+#endif

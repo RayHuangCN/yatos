@@ -259,8 +259,9 @@ global irq_num_255
 global arch_irq_disable
 global arch_irq_enable
 
+global irq_common_ret
 extern irq_vectors
-
+extern task_check_schedule
 irq_test:
     int 0x80
     ret
@@ -309,9 +310,9 @@ arch_irq_disable:
     push %1
     SAVE_REGS
     CALL_VECTOR_HANDLER %1
-    RESTOR_REGS
-    add esp, 8
-    iretd
+    call task_check_schedule
+    jmp irq_common_ret
+
 %endmacro
 
 %macro IRQ_NO_ECODE_HANDLER 1
@@ -319,10 +320,15 @@ arch_irq_disable:
     push %1
     SAVE_REGS
     CALL_VECTOR_HANDLER %1
+    call task_check_schedule
+    jmp irq_common_ret
+
+%endmacro
+
+irq_common_ret:
     RESTOR_REGS
     add esp, 8
-    iretd
-%endmacro
+    iret
 
 irq_num_0:   IRQ_NO_ECODE_HANDLER 0
 irq_num_1:   IRQ_NO_ECODE_HANDLER 1

@@ -10,7 +10,8 @@
 #include <arch/regs.h>
 
 #define IRQ_PAGE_FAULT 14
-#define IRQ_SYSCALL 128
+#define IRQ_SYSCALL 0x80
+#define IRQ_TIMER  0x20
 #define IRQ_TOTAL_NUM 256
 
 #define IRQ_8259A_VEC_START 0x20

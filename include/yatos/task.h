@@ -14,9 +14,9 @@
 #include <yatos/fs.h>
 #include <yatos/bitmap.h>
 #include <yatos/task_vmm.h>
+#include <yatos/schedule.h>
 
-
-#define KERNAL_STACK_SIZE (PAGE_SIZE<<1)
+#define KERNEL_STACK_SIZE (PAGE_SIZE<<1)
 
 #define TASK_STATE_RUN 1
 #define TASK_STATE_STOP 2
@@ -35,8 +35,6 @@
 #define TASK_USER_STACK_LEN   0x40000000
 #define TASK_USER_HEAP_START (0xc0000000 - 0x80000000)
 #define TASK_USER_HEAP_DEAULT_LEN (PAGE_SIZE << 12) //16Mb x
-
-#define MAX_TASK_RUN_CLICK 5
 
 struct section
 {
@@ -59,6 +57,7 @@ struct exec_bin
 
 struct task
 {
+  unsigned long cur_stack;//must be the first one
   //task manage
   unsigned long state;
   unsigned long pid;
@@ -84,15 +83,13 @@ struct task
 };
 
 
-
-struct task * task_get_cur();
-
 void task_init();
 
 void task_setup_init(const char * path);
 
-void task_schedule();
-
 struct exec_bin * task_new_exec_bin();
 struct section * task_new_section();
+
+
+
 #endif

@@ -12,7 +12,7 @@ mmu_set_page_table:
 
     push eax
 
-    mov eax, [ebp]
+    mov eax, [ebp + 8]
     mov cr3, eax
 
     pop eax

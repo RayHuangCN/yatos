@@ -34,6 +34,7 @@ int mmu_map(unsigned long pdt, unsigned long vaddr,unsigned long paddr, unsigned
     set_pdt_entry(pdt, vaddr, pdt_e);
   }
 
+
   pet_e = make_pet(paddr, rw);
   pet_table_vaddr = paddr_to_vaddr(get_pet_addr(pdt_e));
   set_pet_entry(pet_table_vaddr, vaddr,  pet_e);

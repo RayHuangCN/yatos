@@ -55,8 +55,6 @@ struct fs_file
 };
 
 
-
-
 void fs_init();
 struct fs_file * fs_open(const char * path, struct fs_inode * cur_dir);
 int fs_read(struct fs_file * file, char * buffer, unsigned long count);
@@ -67,33 +65,11 @@ void fs_sync(struct fs_file *file);
 off_t fs_seek(struct fs_file * file, off_t offset, int whence);
 
 
-
-
-
-
 void fs_get_file(struct fs_file * file);
 void fs_put_file(struct fs_file * file);
 
 void fs_get_inode(struct fs_inode * inode);
 void fs_put_inode(struct fs_inode  * inode);
 extern struct fs_inode *root_dir;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #endif

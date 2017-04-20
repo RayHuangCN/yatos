@@ -1,10 +1,17 @@
 /*************************************************
  *   Author: Ray Huang
- *   Date  : 2017/4/13
+ *   Date  : 2017/4/20
  *   Email : rayhuang@126.com
- *   Desc  : start file
+ *   Desc  : stdlib
  ************************************************/
 #include <unistd.h>
+#include <stdlib.h>
+
+
+extern unsigned char __bss_start;
+extern unsigned char _edata;
+extern unsigned char _end;
+extern int main(int argc, char **argv);
 
 void _start(int argc, char **argv)
 {
@@ -17,4 +24,10 @@ void _start(int argc, char **argv)
   }
   int ret = main(argc, argv);
   exit(ret);
+}
+
+
+void exit(int __status)
+{
+  _exit(__status);
 }

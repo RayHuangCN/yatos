@@ -11,24 +11,15 @@
 #include <yatos/bitmap.h>
 #include <arch/task.h>
 #include <arch/mmu.h>
+#include <yatos/sys_call.h>
+#include <yatos/schedule.h>
 
-char init_stack_space[KERNAL_STACK_SIZE];
-static struct task * task_current;
-
+char init_stack_space[KERNEL_STACK_SIZE];
 static struct task *init;
-
 static struct kcache * task_cache;
 static struct kcache * bin_cache;
 static struct kcache * section_cache;
-
-static struct list_head task_list;
 static struct bitmap * task_map;
-
-static struct list_head ready_listA;
-static struct list_head ready_listB;
-static struct list_head * run_list;
-static struct list_head * time_up_list;
-
 
 static void task_constr(void *arg)
 {
@@ -64,6 +55,104 @@ static void exec_bin_distr(void *arg)
   }
 }
 
+static void task_get_bin(struct exec_bin *bin)
+{
+  bin->count++;
+}
+
+static void task_put_bin(struct exec_bin *bin)
+{
+  bin->count--;
+  if (!bin->count)
+    slab_free_obj(bin);
+}
+
+
+static void task_adopt(struct task * parent, struct task *child)
+{
+  child->parent = parent;
+  list_add_tail(&(child->child_list_entry), &(parent->childs));
+}
+
+//fork new task
+static int sys_call_fork(struct pt_regs * regs)
+{
+  struct task * new_task = slab_alloc_obj(task_cache);
+  struct task * cur_task = task_get_cur();
+  if (!new_task)
+    return -1;
+  memcpy(new_task, cur_task, sizeof(*new_task));
+
+  new_task->pid = bitmap_alloc(task_map);
+  INIT_LIST_HEAD(&(new_task->childs));
+
+  //kernel stack should be new
+  unsigned long stack = (unsigned long)mm_kmalloc(KERNEL_STACK_SIZE);
+  if (!stack)
+    goto alloc_stack_error;
+  new_task->kernel_stack = stack + KERNEL_STACK_SIZE;
+  memcpy((void *)stack, (void *)(cur_task->kernel_stack - KERNEL_STACK_SIZE), KERNEL_STACK_SIZE);
+
+  new_task->remain_click = MAX_TASK_RUN_CLICK;
+
+  //fds should be new
+  new_task->fd_map = bitmap_clone(cur_task->fd_map);
+  if (!new_task->fd_map)
+    goto bitmap_clone_error;
+
+  //mm_info should be new, and should use copy on write
+  new_task->mm_info = task_vmm_clone_info(cur_task->mm_info);
+  if (!new_task->mm_info)
+    goto vmm_info_clone_error;
+
+  //update all count of inference
+  task_get_bin(cur_task->bin);
+  int i;
+  for (i = 0; i < MAX_OPEN_FD; i++)
+    if (cur_task->files[i])
+      fs_get_file(cur_task->files[i]);
+
+  //setup task relationship
+  task_adopt(cur_task, new_task);
+
+  //add to manager list
+  task_add_new_task(new_task);
+
+  //make new_task scheduleable
+  task_arch_init_run_context(new_task, 0);
+
+  return new_task->pid;
+
+  //error
+ vmm_info_clone_error:
+  bitmap_destory(new_task->fd_map);
+ bitmap_clone_error:
+  mm_kfree(stack);
+ alloc_stack_error:
+  slab_free_obj(new_task);
+  return -1;
+}
+
+static int sys_call_exit(struct pt_regs * regs)
+{
+  printk("sys_call_exit\n");
+  return 0;
+}
+
+static int sys_call_test3(struct pt_regs * regs)
+{
+  printk("sys_call_3\n");
+  return 0;
+}
+
+static int sys_call_test4(struct pt_regs * regs)
+{
+  printk("sys_call_4\n");
+  return 0;
+}
+
+
+
 void task_init()
 {
   task_arch_init();
@@ -74,36 +163,18 @@ void task_init()
     go_die("can not init caches\n");
 
   task_vmm_init();
+  task_schedule_init();
 
-  INIT_LIST_HEAD(&task_list);
   task_map = bitmap_create(MAX_PID_NUM);
-  bitmap_alloc(task_map); //give up 0
-  run_list = &ready_listA;
-  time_up_list = &ready_listB;
+  bitmap_alloc(task_map); //give up
 
-  INIT_LIST_HEAD(run_list);
-  INIT_LIST_HEAD(time_up_list);
-
-
+  sys_call_init();
+  //regist sys_call
+  sys_call_regist(SYS_CALL_FORK, sys_call_fork);
+  sys_call_regist(SYS_CALL_EXIT, sys_call_exit);
+  sys_call_regist(3, sys_call_test3);
+  sys_call_regist(4, sys_call_test4);
 }
-
-
-static void tasK_schedule_to(struct task * prev, struct task *next)
-{
-
-}
-
-void task_schedule()
-{
-
-}
-
-struct task * task_get_cur()
-{
-  return task_current;
-}
-
-
 
 static void task_do_no_page(struct task_vmm_area * vmm_area, unsigned long fault_addr, char * new_page)
 {
@@ -187,14 +258,16 @@ static int task_init_stack(struct task_vmm_info * vmm_info, unsigned long stack_
   }
   //we need map 1 page to init exec args
   uint32 new_page_vaddr = (uint32)mm_kmalloc(PAGE_SIZE);
+
   if (!new_page_vaddr)
     return 1;
 
   vmm_info->stack = stack_area;
-
   uint32 new_page_paddr = vaddr_to_paddr(new_page_vaddr);
   task_do_no_page(stack_area, stack_addr - PAGE_SIZE, (char *)new_page_vaddr);
-  return mmu_map(vmm_info->mm_table_paddr, stack_addr - PAGE_SIZE, new_page_paddr, 1);
+  vaddr_to_page(new_page_vaddr)->private = 1;
+
+  return mmu_map(vmm_info->mm_table_vaddr, stack_addr - PAGE_SIZE, new_page_paddr, 1);
 }
 
 static int task_init_heap(struct task_vmm_info * vmm_info, unsigned long heap_addr)
@@ -227,13 +300,7 @@ void task_free_bin(struct exec_bin * bin)
   mm_kfree(bin);
 }
 
-static void task_add_new_task(struct task * new)
-{
-  irq_disable();
-  list_add(&(new->task_list_entry), &(task_list));
-  list_add(&(new->run_list_entry), run_list);
-  irq_enable();
-}
+
 
 void task_setup_init(const char* path)
 {
@@ -251,15 +318,15 @@ void task_setup_init(const char* path)
   if (!init->fd_map)
     goto create_fd_map_error;
 
-  init->kernel_stack = (unsigned long)(init_stack_space + KERNAL_STACK_SIZE);
+  init->kernel_stack = (unsigned long)(init_stack_space + KERNEL_STACK_SIZE);
   init->parent = NULL;
   init->pid = bitmap_alloc(task_map);
   init->mm_info = task_new_vmm_info();
   if (!init->mm_info)
     goto create_mm_info_error;
 
-  init->mm_info->mm_table_paddr = INIT_PDT_TABLE_START;
-  if (!init->mm_info->mm_table_paddr)
+  init->mm_info->mm_table_vaddr = INIT_PDT_TABLE_START;
+  if (!init->mm_info->mm_table_vaddr)
     goto mm_table_alloc_error;
 
   init->bin = elf_parse(file);
@@ -276,7 +343,6 @@ void task_setup_init(const char* path)
   init->state = TASK_STATE_RUN;
   init->remain_click = MAX_TASK_RUN_CLICK;
   task_add_new_task(init);
-  task_current = init;
 
   task_arch_befor_launch(init);
   //this function never return

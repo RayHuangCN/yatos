@@ -29,5 +29,18 @@ void task_arch_init()
 void task_arch_befor_launch(struct task* task)
 {
   task_tss.esp0 = task->kernel_stack;
-  task_tss.cr3 = vaddr_to_paddr(task->mm_info->mm_table_paddr);
+  task_tss.cr3 = vaddr_to_paddr(task->mm_info->mm_table_vaddr);
+}
+
+extern void irq_common_ret();
+void task_arch_init_run_context(struct task * task, unsigned long ret_val)
+{
+  // not ss esp ,so we should sub 8
+  struct pt_regs * regs = (struct pt_regs *)(task->kernel_stack - sizeof(*regs));
+  regs->eax = ret_val;
+
+  //now we need create a frame for first schedule
+  struct task_sche_frame * frame = (struct task_sche_frame *)(task->kernel_stack - sizeof(*regs) - sizeof(*frame));
+  frame->eip = irq_common_ret;//directly goto irq_common_ret;
+  task->cur_stack = (unsigned long)frame;
 }

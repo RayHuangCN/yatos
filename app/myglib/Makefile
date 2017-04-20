@@ -1,4 +1,4 @@
-obj-y = start.o exit.o
+obj-y = unistd.o sys_call.o stdlib.o
 lib-dir=lib
 include-dir=include
 lib-target = $(lib-dir)/libglib.a
@@ -6,6 +6,11 @@ target-dir=/opt/yatos/yatos-glib/
 
 %.o : %.c
 	gcc -m32 -nostdlib -I./include -c -o $@ $<
+
+%.o : %.asm
+	nasm -f elf -o $@ $<
+
+
 all:$(obj-y)
 	@test -d $(lib-dir) || mkdir $(lib-dir)
 	ar crv $(lib-target)  $(obj-y)

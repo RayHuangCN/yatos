@@ -25,7 +25,7 @@ struct task_vmm_area
 struct task_vmm_info
 {
   unsigned long count;
-  unsigned long mm_table_paddr;
+  unsigned long mm_table_vaddr;
   struct task_vmm_area * stack;
   struct task_vmm_area * heap;
   struct list_head vmm_area_list;
@@ -49,5 +49,9 @@ struct task_vmm_area * task_alloc_area(struct task_vmm_info * mm_info, int len);
 int task_insert_area(struct task_vmm_info * vmm_info, struct task_vmm_area * area);
 
 struct task_vmm_area * task_vmm_search_area(struct task_vmm_info * mm_info, unsigned long start_addr);
+
+struct task_vmm_info * task_vmm_clone_info(struct task_vmm_info * from);
+
+void task_vmm_switch_to(struct task_vmm_info * pre, struct task_vmm_info *next);
 
 #endif
