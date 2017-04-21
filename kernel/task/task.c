@@ -67,6 +67,66 @@ static void task_put_bin(struct exec_bin *bin)
     slab_free_obj(bin);
 }
 
+static void task_do_no_page(struct task_vmm_area * vmm_area, unsigned long fault_addr, char * new_page)
+{
+  uint32 fault_page_addr = PAGE_ALIGN(fault_addr);
+  uint32 page_offset, read_offset, read_len;
+  uint32 left_max, right_min;
+  if (vmm_area->start_addr < fault_page_addr){
+    page_offset = 0;
+    read_offset = fault_page_addr - vmm_area->start_addr;
+    left_max = fault_page_addr;
+  }else{
+    page_offset = vmm_area->start_addr - fault_page_addr;
+    read_offset = 0;
+    left_max = vmm_area->start_addr;
+  }
+
+  if (vmm_area->start_addr + vmm_area->len > fault_page_addr + PAGE_SIZE)
+    right_min = fault_page_addr + PAGE_SIZE;
+  else
+    right_min = vmm_area->start_addr + vmm_area->len;
+
+  read_len = right_min - left_max;
+
+  struct fs_file * file = task_get_cur()->bin->exec_file;
+  struct section * sec = (struct section *)vmm_area->private;
+  if (vmm_area->flag & SECTION_NOBITS)
+    memset(new_page + page_offset,0 ,read_len);
+  else{
+    fs_seek(file, sec->file_offset + read_offset, SEEK_SET);
+    fs_read(file, new_page + page_offset, read_len);
+  }
+
+}
+
+
+
+static int task_init_bin_areas(struct task_vmm_info * vmm_info, struct exec_bin *bin)
+{
+  struct list_head * cur;
+  struct section * cur_sec;
+  struct task_vmm_area * cur_area;
+
+  list_for_each(cur, &(bin->section_list)){
+    cur_sec = container_of(cur, struct section, list_entry);
+    cur_area = task_new_pure_area();
+    if (!cur_area)
+      return 0;
+    cur_area->start_addr = cur_sec->start_vaddr;
+    cur_area->len = cur_sec->len;
+    cur_area->flag = cur_sec->flag;
+    cur_area->private = cur_sec;
+    cur_area->mm_info = vmm_info;
+    cur_area->do_no_page = task_do_no_page;
+
+    if (task_insert_area(vmm_info, cur_area)){
+      printk("insert area error\n");
+      return 1;
+    }
+  }
+  return 0;
+}
 
 static void task_adopt(struct task * parent, struct task *child)
 {
@@ -97,7 +157,8 @@ static int sys_call_fork(struct pt_regs * regs)
 
   //fds should be new
   new_task->fd_map = bitmap_clone(cur_task->fd_map);
-  if (!new_task->fd_map)
+  new_task->no_close_on_exec = bitmap_clone(cur_task->no_close_on_exec);
+  if (!new_task->fd_map || new_task->no_close_on_exec)
     goto bitmap_clone_error;
 
   //mm_info should be new, and should use copy on write
@@ -133,8 +194,45 @@ static int sys_call_fork(struct pt_regs * regs)
   return -1;
 }
 
+//return cur stack addr
+static unsigned long task_init_args(struct task_vmm_area *stack, char * args[])
+{
+  return stack->start_addr + stack->len - 12;
+}
+
+
+static int task_do_execve(const char *path, char * argv[], char * envp[])
+{
+  struct task * task = task_get_cur();
+  task_put_bin(task->bin);
+  int i;
+  for (i = 0 ; i < MAX_OPEN_FD; i++)
+    if (task->files[i] && !bitmap_check(task->no_close_on_exec, i)){
+      fs_close(task->files[i]);
+      bitmap_free(task->fd_map, i);
+    }
+
+  //rebuild mm_info
+  task_vmm_clear(task->mm_info);
+  task->bin = fs_open(path, root_dir);
+
+
+
+
+  return 1;
+}
+
+static int sys_call_execve(struct pt_regs * regs)
+{
+  const char * path_name = (const char *)regs->ebx;
+  char ** argv = (char **)regs->ecx;
+  char ** envp = (char **)regs->edx;
+  return task_do_execve(path_name, argv, envp);
+}
+
 static int sys_call_exit(struct pt_regs * regs)
 {
+  int status = regs->ebx;
   printk("sys_call_exit\n");
   return 0;
 }
@@ -176,72 +274,11 @@ void task_init()
   sys_call_regist(4, sys_call_test4);
 }
 
-static void task_do_no_page(struct task_vmm_area * vmm_area, unsigned long fault_addr, char * new_page)
-{
-  uint32 fault_page_addr = PAGE_ALIGN(fault_addr);
-  uint32 page_offset, read_offset, read_len;
-  uint32 left_max, right_min;
-  if (vmm_area->start_addr < fault_page_addr){
-    page_offset = 0;
-    read_offset = fault_page_addr - vmm_area->start_addr;
-    left_max = fault_page_addr;
-  }else{
-    page_offset = vmm_area->start_addr - fault_page_addr;
-    read_offset = 0;
-    left_max = vmm_area->start_addr;
-  }
-
-  if (vmm_area->start_addr + vmm_area->len > fault_page_addr + PAGE_SIZE)
-    right_min = fault_page_addr + PAGE_SIZE;
-  else
-    right_min = vmm_area->start_addr + vmm_area->len;
-
-  read_len = right_min - left_max;
-
-  struct fs_file * file = task_get_cur()->bin->exec_file;
-  struct section * sec = (struct section *)vmm_area->private;
-  if (vmm_area->flag & SECTION_NOBITS)
-    memset(new_page + page_offset,0 ,read_len);
-  else{
-    fs_seek(file, sec->file_offset + read_offset, SEEK_SET);
-    fs_read(file, new_page + page_offset, read_len);
-  }
-
-}
 
 
-static int task_init_bin_areas(struct task_vmm_info * vmm_info, struct exec_bin *bin)
-{
-  struct list_head * cur;
-  struct section * cur_sec;
-  struct task_vmm_area * cur_area;
-
-  list_for_each(cur, &(bin->section_list)){
-    cur_sec = container_of(cur, struct section, list_entry);
-    cur_area = task_new_pure_area();
-    if (!cur_area)
-      return 0;
-    cur_area->start_addr = cur_sec->start_vaddr;
-    cur_area->len = cur_sec->len;
-    cur_area->flag = cur_sec->flag;
-    cur_area->private = cur_sec;
-    cur_area->mm_info = vmm_info;
-    cur_area->do_no_page = task_do_no_page;
-
-    if (task_insert_area(vmm_info, cur_area)){
-        printk("insert area error\n");
-        return 1;
-    }
-  }
-  return 0;
-}
 
 
-//return cur stack addr
-static unsigned long  task_init_args(struct task_vmm_area *stack, const char * args[])
-{
-  return stack->start_addr + stack->len - 12;
-}
+
 
 static int task_init_stack(struct task_vmm_info * vmm_info, unsigned long stack_addr, unsigned long len)
 {
@@ -315,7 +352,8 @@ void task_setup_init(const char* path)
     goto task_alloc_error;
 
   init->fd_map = bitmap_create(MAX_OPEN_FD);
-  if (!init->fd_map)
+  init->no_close_on_exec = bitmap_create(MAX_OPEN_FD);
+  if (!init->fd_map || !init->no_close_on_exec)
     goto create_fd_map_error;
 
   init->kernel_stack = (unsigned long)(init_stack_space + KERNEL_STACK_SIZE);

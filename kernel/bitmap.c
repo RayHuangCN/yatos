@@ -76,3 +76,23 @@ void bitmap_free(struct bitmap * bi, int num)
     return ;
   bi->map[num / 32] &=  ~(1U << (num % 32));
 }
+
+void bitmap_set(struct bitmap* bm,int num)
+{
+  if (num >= bm->count)
+    return ;
+  bm->map[num / 32] |= 1 << (num % 32);
+}
+void bitmap_clr(struct bitmap * bm, int num)
+{
+  if (num >= bm->count)
+    return ;
+  bm->map[num / 32] &= ~(1U << (num % 32));
+}
+
+int bitmap_check(struct bitmap* bm,int num)
+{
+  if (num >= bm->count)
+    return ;
+  return (bm->map[num  / 32] & (1 << (num % 32)));
+}

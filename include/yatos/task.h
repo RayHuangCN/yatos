@@ -77,8 +77,13 @@ struct task
   struct task_vmm_info * mm_info;
 
   //opened file
-  struct file * files[MAX_OPEN_FD];
+  struct fs_file * files[MAX_OPEN_FD];
   struct bitmap * fd_map;
+  struct bitmap * no_close_on_exec;
+
+  //fs
+  struct fs_inode * cur_dir;
+
   //signal
 };
 

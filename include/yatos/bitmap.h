@@ -24,8 +24,10 @@ void bitmap_copy(struct bitmap * des, struct bitmap *  src);
 
 int bitmap_alloc(struct bitmap *  bm);
 void bitmap_free(struct bitmap * bi, int num);
-
-
 int bitmap_count(struct bitmap * bm);
+
+void bitmap_set(struct bitmap * bm, int num);
+void bitmap_clr(struct bitmap * bm, int num);
+int bitmap_check(struct bitmap * bm, int num);
 
 #endif

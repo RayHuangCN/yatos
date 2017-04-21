@@ -15,9 +15,9 @@
 static void kernel_banch()
 {
   printk("================================================\n");
-  printk("                  YatOS 0.11                    \n");
+  printk("                  YatOS 0.2                     \n");
   printk("              Author: Ray Huang                 \n");
-  printk("                      2017/4/02                 \n");
+  printk("                      2017/4/20                 \n");
   printk("================================================\n");
 }
 
@@ -33,5 +33,7 @@ void kernel_start()
   fs_init();
   task_init();
   task_setup_init("sbin/init");
+  /* never back here */
+  go_die("the end of the world\n");
   while (1);
 }

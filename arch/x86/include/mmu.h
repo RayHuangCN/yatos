@@ -45,6 +45,13 @@
 #define clr_writable(pet_e)\
   (pet_e &= ~0x2)
 
+#define pdt_present(pdt_e)\
+  (pdt_e & 0x1)
+
+#define pet_present(pet_e)\
+  (pet_e & 0x1)
+
+
 int mmu_map(unsigned long pdt, unsigned long vaddr, unsigned long paddr, unsigned long rw);
 void mmu_init();
 void mmu_flush();

@@ -54,4 +54,9 @@ struct task_vmm_info * task_vmm_clone_info(struct task_vmm_info * from);
 
 void task_vmm_switch_to(struct task_vmm_info * pre, struct task_vmm_info *next);
 
+int task_copy_from_user(void * des, const void * src, unsigned long count);
+int task_copy_to_user(void * des, const void * src, unsigned long count);
+
+void task_vmm_clear(struct task_vmm_info *mm_info);
+
 #endif
