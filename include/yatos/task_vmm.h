@@ -56,6 +56,8 @@ void task_vmm_switch_to(struct task_vmm_info * pre, struct task_vmm_info *next);
 
 int task_copy_from_user(void * des, const void * src, unsigned long count);
 int task_copy_to_user(void * des, const void * src, unsigned long count);
+int task_copy_str_from_user(void * des, const char * str, unsigned long max_len);
+int task_copy_pts_from_user(void * des, const char ** p, unsigned long max_len);
 
 void task_vmm_clear(struct task_vmm_info *mm_info);
 

@@ -21,7 +21,7 @@ struct exec_bin * elf_parse(struct fs_file* file)
 
   uint32 read_n;
   fs_seek(file, 0 , SEEK_SET);
-  read_n = fs_read(file, (uint8*)elf_head, sizeof(*elf_head));
+  read_n = fs_read(file, (char *)elf_head, sizeof(*elf_head));
   if (read_n != sizeof(*elf_head)){
     printk("can not read elf_head\n");
     return NULL;
@@ -39,7 +39,7 @@ struct exec_bin * elf_parse(struct fs_file* file)
     return NULL;
 
   fs_seek(file, elf_head->e_shoff, SEEK_SET);
-  read_n = fs_read(file, (uint8*)secs, secs_size);
+  read_n = fs_read(file, (char *)secs, secs_size);
   if (read_n != secs_size){
     printk("can not read elf_sections\n");
     return NULL;

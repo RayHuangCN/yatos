@@ -29,10 +29,10 @@ void kernel_start()
   mm_init();
   irq_init();
   timer_init();
+  task_init();
   kernel_banch();
   fs_init();
-  task_init();
-  task_setup_init("sbin/init");
+  task_setup_init("/sbin/init");
   /* never back here */
   go_die("the end of the world\n");
   while (1);

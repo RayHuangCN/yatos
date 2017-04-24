@@ -9,12 +9,22 @@
 #include <yatos/fs.h>
 #include <yatos/mm.h>
 #include <yatos/ext2.h>
+#include <yatos/task.h>
+#include <yatos/sys_call.h>
+#include <yatos/task_vmm.h>
+#include <yatos/schedule.h>
 
 static struct kcache * file_cache;
 static struct kcache * inode_cache;
 static struct kcache * data_buffer_cache;
 static struct list_head inode_list;
-struct fs_inode * root_dir;
+static struct fs_inode * root_dir;
+
+
+struct fs_inode * fs_get_root()
+{
+  return root_dir;
+}
 
 void fs_get_file(struct fs_file * file)
 {
@@ -54,14 +64,13 @@ static void fs_constr_file(void *arg)
 {
   struct fs_file *file = (struct fs_file*)arg;
   file->count = 1;
-  file->cur_offset = 0;
-  file->inode = NULL;
-  file->open_flag = 0;
 }
 
 static void fs_distr_file(void *arg)
 {
   struct fs_file * file = (struct fs_file*)arg;
+  if (file->inode && file->inode->action && file->inode->action->close)
+    file->inode->action->close(file);
   fs_put_inode(file->inode);
 }
 
@@ -70,8 +79,6 @@ static void fs_constr_inode(void *arg)
   struct fs_inode * inode = (struct fs_inode *)arg;
   inode->count = 1;
   INIT_LIST_HEAD(&(inode->data_buffers));
-  inode->inode_data = NULL;
-  inode->inode_num = 0;
   INIT_LIST_HEAD(&(inode->list_entry));
 }
 
@@ -82,27 +89,19 @@ static void fs_distr_inode(void * arg)
   struct list_head * safe;
   struct fs_data_buffer * data;
 
-  ext2_sync_data(inode);
+  if (inode->action && inode->action->sync)
+    inode->action->sync(inode);
 
   list_for_each_safe(cur, safe, &(inode->data_buffers)){
     data = container_of(cur, struct fs_data_buffer, list_entry);
     slab_free_obj(data);
   }
-  if (inode->inode_data)
-    ext2_free_inode(inode->inode_data);
+  if (inode->action && inode->action->release)
+    inode->action->release(inode);
   if (!list_empty(&(inode->list_entry)))
       list_del(&(inode->list_entry));
 }
 
-
-static void fs_constr_dbuffer(void *arg)
-{
-  struct fs_data_buffer * buffer = (struct fs_data_buffer *)arg;
-  buffer->flag = 0;
-  buffer->buffer = NULL;
-  buffer->block_offset = 0;
-  buffer->ext2_block_num = 0;
-}
 static void fs_distr_dbuffer(void *arg)
 {
   struct fs_data_buffer * buffer = (struct fs_data_buffer *)arg;
@@ -115,20 +114,12 @@ static void fs_init_caches()
 {
   file_cache = slab_create_cache(sizeof(struct fs_file), fs_constr_file , fs_distr_file, "fs_file cache");
   inode_cache = slab_create_cache(sizeof(struct fs_inode), fs_constr_inode, fs_distr_inode, "fs_inode cache");
-  data_buffer_cache = slab_create_cache(sizeof(struct fs_data_buffer), fs_constr_dbuffer, fs_distr_dbuffer, "data_buffer cache");
+  data_buffer_cache = slab_create_cache(sizeof(struct fs_data_buffer), NULL, fs_distr_dbuffer, "data_buffer cache");
   if (!file_cache || !inode_cache || !data_buffer_cache)
     go_die("fs_init_caches error\n\r");
 }
 
-void fs_init()
-{
 
-  fs_init_caches();
-  INIT_LIST_HEAD(&(inode_list));
-  ext2_init();
-  root_dir = slab_alloc_obj(inode_cache);
-  ext2_init_root(root_dir);
-}
 
 static struct fs_inode * fs_search_inode_from_list(int num)
 {
@@ -140,57 +131,6 @@ static struct fs_inode * fs_search_inode_from_list(int num)
       return ret;
   }
   return NULL;
-}
-
-struct fs_file * fs_open(const char *path, struct fs_inode * cur_inode)
-{
-  char name[MAX_FILE_NAME_LEN];
-  int p = 0;
-  const char * cur_c = path;
-  struct fs_inode * temp_fs_inode = cur_inode;
-  while (*cur_c){
-    p = 0;
-    while (*cur_c && *cur_c == '/')
-      cur_c++;
-    while (*cur_c && *cur_c != '/'){
-      name[p++] = *cur_c;
-      cur_c++;
-    }
-    name[p] = '\0';
-
-    if (!p || !strcmp(name, "."))
-      continue;
-
-    if (!(temp_fs_inode->inode_data->i_mode & EXT2_IFDIR)){
-      printk("not a dir\n\r");
-      return NULL;
-    }
-    struct fs_inode * ret = slab_alloc_obj(inode_cache);
-    if (!ret)
-      return NULL;
-    if (!ext2_find_file(name, temp_fs_inode, ret)){
-      printk("can not find %s\n\r", name);
-      return NULL;
-    }
-
-    if (temp_fs_inode != cur_inode)
-      fs_put_inode(temp_fs_inode);
-    temp_fs_inode  = ret;
-  }
-
-
-  struct fs_file * ret_file = (struct fs_file *)slab_alloc_obj(file_cache);
-  ret_file->inode = fs_search_inode_from_list(temp_fs_inode->inode_num);
-
-  if (ret_file->inode){
-    fs_get_inode(ret_file->inode);
-    fs_put_inode(temp_fs_inode);
-  }
-  else{
-    ret_file->inode = temp_fs_inode;
-    list_add_tail(&(temp_fs_inode->list_entry), &inode_list);
-  }
-  return ret_file;
 }
 
 
@@ -236,13 +176,14 @@ static struct fs_data_buffer * fs_inode_get_buffer(struct fs_inode * fs_inode, u
   return buf;
 }
 
-int fs_read(struct fs_file* file,char* buffer,unsigned long count)
+static int fs_gener_read(struct fs_file* file, char* buffer,unsigned long count)
 {
   struct fs_inode * inode = file->inode;
   uint32 off_set = file->cur_offset;
-  if (off_set >= inode->inode_data->i_size)
+  struct ext2_inode * ext2_inode = (struct ext2_inode *)inode->inode_data;
+  if (off_set >= ext2_inode->i_size)
     return 0;
-  uint32 total_size = inode->inode_data->i_size;
+  uint32 total_size = ext2_inode->i_size;
 
   if (total_size - off_set < count)
     count = total_size - off_set;
@@ -269,12 +210,11 @@ int fs_read(struct fs_file* file,char* buffer,unsigned long count)
   return read_count;
 }
 
-int fs_write(struct fs_file* file,char* buffer,unsigned long count)
+static int fs_gener_write(struct fs_file* file,char* buffer,unsigned long count)
 {
   struct fs_inode * inode  = file->inode;
   uint32 off_set = file->cur_offset;
-
-
+  struct ext2_inode * ext2_inode = inode->inode_data;
   uint32 write_count = 0;
   uint32 block_offset;
   uint32 buff_offset;
@@ -296,21 +236,25 @@ int fs_write(struct fs_file* file,char* buffer,unsigned long count)
     count -= cpy_size;
   }
   file->cur_offset += write_count;
-  if (write_count && file->cur_offset > inode->inode_data->i_size)
-    inode->inode_data->i_size = file->cur_offset;
+  if (write_count && file->cur_offset > ext2_inode->i_size)
+    ext2_inode->i_size = file->cur_offset;
   return write_count;
 }
 
-void fs_sync(struct fs_file *file)
+static void fs_gener_sync(struct fs_inode  *inode)
 {
-  ext2_sync_data(file->inode);
+  ext2_sync_data(inode);
 }
 
+static void fs_gener_release(struct fs_inode * inode)
+{
+  ext2_free_inode(inode->inode_data);
+}
 
-
-off_t fs_seek(struct fs_file* file,off_t offset,int whence)
+static off_t fs_gener_seek(struct fs_file* file,off_t offset,int whence)
 {
 
+  struct ext2_inode * ext2_inode = file->inode->inode_data;
   switch(whence){
   case SEEK_SET:
     file->cur_offset = offset;
@@ -321,8 +265,280 @@ off_t fs_seek(struct fs_file* file,off_t offset,int whence)
       file->cur_offset = 0;
     return file->cur_offset;
   case SEEK_END:
-    file->cur_offset = file->inode->inode_data->i_size + offset;
+    file->cur_offset = ext2_inode->i_size + offset;
     return file->cur_offset;
   }
   return -1;
+}
+
+static struct fs_inode_oper gerner_inode_oper = {
+  .read = fs_gener_read,
+  .write = fs_gener_write,
+  .seek = fs_gener_seek,
+  .sync = fs_gener_sync,
+  .release = fs_gener_release
+};
+
+struct fs_file * fs_open(const char * path, int flag, mode_t mode)
+{
+  //check cur dir
+  struct task * task = task_get_cur();
+  struct fs_inode * cur_inode;
+  int i = 0;
+  while (path[i] && (path[i] == ' ' || path[i] == '\t'))
+    i++;
+  if (!path || !path[i])
+    return NULL;
+
+  if (path[i] == '/')
+    cur_inode = root_dir;
+  else
+    cur_inode = task->cur_dir;
+
+  // now open
+  char name[MAX_FILE_NAME_LEN];
+  int p = 0;
+  const char * cur_c = path;
+  struct fs_inode * temp_fs_inode = cur_inode;
+  struct ext2_inode * ext2_inode = temp_fs_inode->inode_data;
+
+  while (*cur_c){
+    p = 0;
+    while (*cur_c && *cur_c == '/')
+      cur_c++;
+    while (*cur_c && *cur_c != '/'){
+      name[p++] = *cur_c;
+      cur_c++;
+    }
+    name[p] = '\0';
+
+    if (!p || !strcmp(name, "."))
+      continue;
+
+    if (!(ext2_inode->i_mode & EXT2_IFDIR)){
+      printk("not a dir\n\r");
+      return NULL;
+    }
+    struct fs_inode * ret = slab_alloc_obj(inode_cache);
+    if (!ret)
+      return NULL;
+    if (!ext2_find_file(name, temp_fs_inode, ret)){
+      printk("can not find %s\n\r", name);
+      return NULL;
+    }
+
+    if (temp_fs_inode != cur_inode)
+      fs_put_inode(temp_fs_inode);
+    temp_fs_inode  = ret;
+    ext2_inode = temp_fs_inode->inode_data;
+  }
+
+  struct fs_file * ret_file = (struct fs_file *)slab_alloc_obj(file_cache);
+  ret_file->inode = fs_search_inode_from_list(temp_fs_inode->inode_num);
+
+  if (ret_file->inode){
+    fs_get_inode(ret_file->inode);
+    fs_put_inode(temp_fs_inode);
+  }
+  else{
+    ret_file->inode = temp_fs_inode;
+    list_add_tail(&(temp_fs_inode->list_entry), &inode_list);
+    ret_file->inode->action = &gerner_inode_oper;
+  }
+  ret_file->flag = flag;
+  return ret_file;
+}
+
+
+int fs_read(struct fs_file* file,char* buffer,unsigned long count)
+{
+  if (file->inode->action->read)
+    return file->inode->action->read(file, buffer, count);
+  else
+    return -1;
+}
+
+
+int fs_write(struct fs_file * file, char * buffer, unsigned long count)
+{
+  if (file->inode->action->write)
+    return file->inode->action->write(file, buffer, count);
+  else
+    return -1;
+}
+
+void fs_sync(struct fs_file * file)
+{
+  if (file->inode->action->sync)
+    file->inode->action->sync(file->inode);
+}
+
+off_t fs_seek(struct fs_file * file, off_t offset, int whence)
+{
+  if (file->inode->action->seek)
+    return file->inode->action->seek(file, offset, whence);
+  else
+    return -1;
+  return 0;
+}
+
+
+static int sys_call_open(struct pt_regs * regs)
+{
+  const char * path = (const char *)sys_call_arg1(regs);
+  int flag = (int)sys_call_arg2(regs);
+  mode_t mode = (int)sys_call_arg3(regs);
+
+  struct task * task = task_get_cur();
+  struct fs_file * file;
+  int fd;
+
+  char * tmp_buffer = (char *)mm_kmalloc(PAGE_SIZE);
+  if (!tmp_buffer)
+    return -1;
+
+  if (task_copy_from_user(tmp_buffer, path, strnlen(path, MAX_PATH_LEN)))
+    goto copy_from_user_error;
+
+  file = fs_open(tmp_buffer, flag, mode);
+  if (!file)
+    goto fs_open_error;
+
+  fd = bitmap_alloc(task->fd_map);
+  if (fd >= 0){
+    task->files[fd] = file;
+    return fd;
+  }
+
+ fs_open_error:
+ copy_from_user_error:
+  mm_kfree(tmp_buffer);
+  return -1;
+}
+
+static int sys_call_read(struct pt_regs * regs)
+{
+  int fd = (int)sys_call_arg1(regs);
+  if (fd < 0 || fd >= MAX_OPEN_FD)
+    return -1;
+  char *buffer = (char *)sys_call_arg2(regs);
+  if (!buffer)
+    return -1;
+  unsigned long size = (unsigned long)sys_call_arg3(regs);
+
+  struct task * task = task_get_cur();
+  struct fs_file * file = task->files[fd];
+  if (!file || !file->inode || !file->inode->action->read)
+    return -1;
+
+  char * tmp_buffer = (char *)mm_kmalloc(size);
+  if (!tmp_buffer)
+    return -1;
+
+  int read_n = file->inode->action->read(file, tmp_buffer, size);
+  if (read_n > 0){
+    if (task_copy_to_user(buffer, tmp_buffer, read_n))
+      read_n = -1;
+  }
+  mm_kfree(tmp_buffer);
+  return read_n;
+}
+
+static int sys_call_write(struct pt_regs *regs)
+{
+  int fd = (int)sys_call_arg1(regs);
+  if (fd < 0 || fd >= MAX_OPEN_FD)
+    return -1;
+  char *buffer = (char *)sys_call_arg2(regs);
+  if (!buffer)
+    return -1;
+  unsigned long size = (unsigned long)sys_call_arg3(regs);
+
+  struct task * task = task_get_cur();
+  struct fs_file * file = task->files[fd];
+  if (!file || !file->inode || !file->inode->action->write)
+    return -1;
+
+  char * tmp_buffer = (char *)mm_kmalloc(size);
+  if (!tmp_buffer)
+    return -1;
+
+  if (task_copy_from_user(tmp_buffer, buffer, size)){
+    mm_kfree(tmp_buffer);
+    return -1;
+  }
+
+  int write_n = file->inode->action->write(file, tmp_buffer, size);
+  mm_kfree(tmp_buffer);
+  return write_n;
+}
+
+
+static int sys_call_seek(struct pt_regs * regs)
+{
+  int fd = (int)sys_call_arg1(regs);
+  if (fd < 0)
+    return -1;
+  off_t offset = (off_t)sys_call_arg2(regs);
+  int whence = (int)sys_call_arg3(regs);
+
+  struct task * task = task_get_cur();
+  struct fs_file * file = task->files[fd];
+  if (!file || !file->inode || !file->inode->action->seek)
+    return -1;
+
+  return file->inode->action->seek(file, offset, whence);
+}
+
+static int sys_call_sync(struct pt_regs *regs)
+{
+  int fd = (int)sys_call_arg1(regs);
+  if (fd < 0)
+    return -1;
+  struct task *task = task_get_cur();
+  struct fs_file * file = task->files[fd];
+  if (!file || !file->inode || !file->inode->action->sync)
+    return -1;
+  file->inode->action->sync(file->inode);
+  return 0;
+}
+
+static int sys_call_close(struct pt_regs * regs)
+{
+  int fd = (int)sys_call_arg1(regs);
+  if (fd < 0)
+    return -1;
+  struct task * task = task_get_cur();
+  struct fs_file * file = task->files[fd];
+  fs_put_file(file);
+  task->files[fd] = NULL;
+  bitmap_free(task->fd_map, fd);
+  return 0;
+}
+
+
+void fs_init()
+{
+
+  fs_init_caches();
+  INIT_LIST_HEAD(&(inode_list));
+  ext2_init();
+  root_dir = slab_alloc_obj(inode_cache);
+  ext2_init_root(root_dir);
+
+  sys_call_regist(SYS_CALL_OPEN, sys_call_open);
+  sys_call_regist(SYS_CALL_READ, sys_call_read);
+  sys_call_regist(SYS_CALL_WRITE, sys_call_write);
+  sys_call_regist(SYS_CALL_SEEK, sys_call_seek);
+  sys_call_regist(SYS_CALL_SYNC, sys_call_sync);
+  sys_call_regist(SYS_CALL_CLOSE, sys_call_close);
+}
+
+struct fs_file * fs_new_file()
+{
+  return slab_alloc_obj(file_cache);
+}
+struct fs_inode * fs_new_inode()
+{
+  return slab_alloc_obj(inode_cache);
 }

@@ -1,11 +1,10 @@
-obj-y = unistd.o sys_call.o stdlib.o
+obj-y = unistd.o fcntl.o sys_call.o stdlib.o ctype.o string.o vsprintf.o printf.o
 lib-dir=lib
-include-dir=include
-lib-target = $(lib-dir)/libglib.a
+lib-target = $(lib-dir)/libmyglib.o
 target-dir=/opt/yatos/yatos-glib/
 
 %.o : %.c
-	gcc -m32 -nostdlib -I./include -c -o $@ $<
+	gcc -m32 -static -nostdlib -fno-builtin -fno-stack-protector -c -o $@ $<
 
 %.o : %.asm
 	nasm -f elf -o $@ $<
@@ -13,7 +12,7 @@ target-dir=/opt/yatos/yatos-glib/
 
 all:$(obj-y)
 	@test -d $(lib-dir) || mkdir $(lib-dir)
-	ar crv $(lib-target)  $(obj-y)
+	ld -r -melf_i386 -o  $(lib-target)  $(obj-y)
 clean:
 	rm *.o  $(lib-target)
 	rm -r -f lib
@@ -21,7 +20,6 @@ clean:
 install:
 	@test -d $(target-dir) || mkdir -p $(target-dir)
 	cp -r lib /opt/yatos/yatos-glib/
-	cp -r include /opt/yatos/yatos-glib/
 	cp gcc-yatos /usr/bin/
 uninstall:
 	rm /opt/yatos -f -r

@@ -41,6 +41,7 @@ void task_arch_init_run_context(struct task * task, unsigned long ret_val)
 
   //now we need create a frame for first schedule
   struct task_sche_frame * frame = (struct task_sche_frame *)(task->kernel_stack - sizeof(*regs) - sizeof(*frame));
-  frame->eip = irq_common_ret;//directly goto irq_common_ret;
+  frame->eip = (unsigned long)irq_common_ret;//directly goto irq_common_ret;
+  frame->eflags = 0x92;
   task->cur_stack = (unsigned long)frame;
 }

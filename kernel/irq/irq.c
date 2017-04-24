@@ -92,7 +92,7 @@ void  irq_unregist(int irq_num,struct irq_action* action)
 
 }
 
-int irq_action_init(struct irq_action * action)
+void irq_action_init(struct irq_action * action)
 {
   action->action = NULL;
   action->private_data = NULL;

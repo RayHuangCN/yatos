@@ -44,6 +44,8 @@
 
 #define clr_writable(pet_e)\
   (pet_e &= ~0x2)
+#define set_writable(pet_e)\
+  (pet_e |= 0x2)
 
 #define pdt_present(pdt_e)\
   (pdt_e & 0x1)

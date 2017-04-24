@@ -3,8 +3,7 @@
 #include "yatos/printk.h"
 extern void putc( char c);
 
-
-static int getc()
+int getc()
 {
 	return 0;
 }

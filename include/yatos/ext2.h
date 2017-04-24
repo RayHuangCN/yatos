@@ -369,7 +369,6 @@ enum {
 
 
 
-
 void ext2_init();
 
 //sync inode and data

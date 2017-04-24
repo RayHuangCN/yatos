@@ -92,9 +92,8 @@ struct page * pmm_paddr_to_page(unsigned long address){
 static struct  page * pmm_do_alloc(unsigned long size, unsigned long align)
 {
   struct page * cur = NULL, *ret = NULL;
-  unsigned long start_addr,end_addr, align_addr, block_size;
+  unsigned long start_addr, align_addr, block_size, end_addr;
   struct list_head * pos = NULL;
-
   int i;
   align = (1 << align) * PAGE_SIZE;
   for (i = 0; i < PMM_MAX_LEVE; i++){
@@ -183,7 +182,9 @@ void pmm_free_pages(struct page * pages, unsigned long size)
 {
   int i;
   pmm_putback_remain(pages,size);
-  for (i = 0; i < size; ++i)
+  for (i = 0; i < size; ++i){
     pages[i].count = 0;
+    pages[i].private = NULL;
+  }
   pmm_useable_page += size;
 }

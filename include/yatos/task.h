@@ -14,7 +14,6 @@
 #include <yatos/fs.h>
 #include <yatos/bitmap.h>
 #include <yatos/task_vmm.h>
-#include <yatos/schedule.h>
 
 #define KERNEL_STACK_SIZE (PAGE_SIZE<<1)
 
@@ -30,6 +29,8 @@
 
 #define MAX_OPEN_FD 64
 #define MAX_PID_NUM 256
+#define MAX_ARG_NUM 32
+#define MAX_ARG_LEN 64
 
 #define TASK_USER_STACK_START 0xc0000000
 #define TASK_USER_STACK_LEN   0x40000000
@@ -94,7 +95,7 @@ void task_setup_init(const char * path);
 
 struct exec_bin * task_new_exec_bin();
 struct section * task_new_section();
-
-
+void task_put_bin(struct exec_bin * bin);
+void task_get_bin(struct exec_bin * bin);
 
 #endif

@@ -13,7 +13,7 @@ void mmu_init()
   uint32 * pdt = (uint32*)INIT_PDT_TABLE_START;
   int i;
   for (i = 0; i < KERNEL_VMM_START / (4 * 10240 * 1024); i++)
-    pdt[0] = 0;
+    pdt[i] = 0;
 
 }
 
@@ -28,7 +28,7 @@ int mmu_map(unsigned long pdt, unsigned long vaddr,unsigned long paddr, unsigned
     uint32 new_pet_table = (uint32)mm_kmalloc(PAGE_SIZE);
     if (!new_pet_table)
       return 1;
-
+    memset((void *)new_pet_table, 0, PAGE_SIZE);
     new_pet_table = vaddr_to_paddr(new_pet_table);
     pdt_e = make_pdt(new_pet_table, 1);
     set_pdt_entry(pdt, vaddr, pdt_e);

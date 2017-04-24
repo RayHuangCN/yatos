@@ -1,2 +1,2 @@
 #! /bin/bash
-gcc -m32 -nostdlib -L/opt/yatos/yatos-glib/lib/ -lglib -I/opt/yatos/yatos-glib/include  $*
+gcc -m32 -fno-builtin -nostdlib -static /opt/yatos/yatos-glib/lib/libmyglib.o $*

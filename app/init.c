@@ -5,30 +5,25 @@
  *   Desc  : test
  ************************************************/
 #include <unistd.h>
-#include <sys_call.h>
+#include <stdio.h>
 pid_t child;
+
+char *ags[] = {"1", "2", "3", "4", NULL};
+char *evs[] = {"A", "B", "C", "D", NULL};
+
 
 int main(int argc, char **argv)
 {
   if ((child = fork())){
     //parent
-    while (1){
-      int i;
-      for (i = 0 ; i < 1000000; i++)
-        ;//delay
-
-      sys_call_1(3);
-    }
-
+    printf("child id = %d\n", child);
+    while (1);
   }else{
     //child
-    while (2){
-      int i;
-      for (i = 0 ; i < 1000000; i++)
-        ;//delay
-
-      sys_call_1(4);
-    }
+    printf("befor execve\n");
+    execve("/test", ags, evs);
+    printf("after execve\n");
+    while (1);
   }
   return 0;
 }

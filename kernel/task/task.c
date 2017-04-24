@@ -13,6 +13,7 @@
 #include <arch/mmu.h>
 #include <yatos/sys_call.h>
 #include <yatos/schedule.h>
+#include <yatos/fs.h>
 
 char init_stack_space[KERNEL_STACK_SIZE];
 static struct task *init;
@@ -35,8 +36,9 @@ static void task_distr(void *arg)
   if (task->mm_info)
     task_put_vmm_info(task->mm_info);
   if (task->bin)
-    task_free_bin(task->bin);
+    task_put_bin(task->bin);
 }
+
 static void exec_bin_constr(void *arg)
 {
   struct exec_bin * bin = (struct exec_bin*)arg;
@@ -53,18 +55,6 @@ static void exec_bin_distr(void *arg)
     cur_se = container_of(cur, struct section, list_entry);
     slab_free_obj(cur_se);
   }
-}
-
-static void task_get_bin(struct exec_bin *bin)
-{
-  bin->count++;
-}
-
-static void task_put_bin(struct exec_bin *bin)
-{
-  bin->count--;
-  if (!bin->count)
-    slab_free_obj(bin);
 }
 
 static void task_do_no_page(struct task_vmm_area * vmm_area, unsigned long fault_addr, char * new_page)
@@ -101,6 +91,51 @@ static void task_do_no_page(struct task_vmm_area * vmm_area, unsigned long fault
 }
 
 
+static int task_init_stack(struct task_vmm_info * vmm_info, unsigned long stack_addr, unsigned long len)
+{
+  //set up area
+  struct task_vmm_area * stack_area = task_new_pure_area();
+  stack_area->do_no_page = task_do_no_page;
+  stack_area->flag = SECTION_WRITE | SECTION_NOBITS;
+  stack_area->mm_info = vmm_info;
+  stack_area->start_addr = stack_addr - len;
+  stack_area->len = len;
+  if (task_insert_area(vmm_info, stack_area)){
+    task_free_area(stack_area);
+    return 1;
+  }
+  vmm_info->stack = stack_area;
+  return 0;
+}
+
+static int task_init_heap(struct task_vmm_info * vmm_info, unsigned long heap_addr, unsigned long len)
+{
+  //set up heap
+  struct task_vmm_area * heap_area = task_new_pure_area();
+  heap_area->do_no_page = task_do_no_page;
+  heap_area->flag = SECTION_WRITE | SECTION_NOBITS;
+  heap_area->mm_info = vmm_info;
+  heap_area->start_addr = heap_addr;
+  heap_area->len = len;
+  if (task_insert_area(vmm_info, heap_area)){
+    task_free_area(heap_area);
+    return 1;
+  }
+  vmm_info->heap = heap_area;
+  return 0;
+}
+
+void task_get_bin(struct exec_bin *bin)
+{
+  bin->count++;
+}
+
+void task_put_bin(struct exec_bin *bin)
+{
+  bin->count--;
+  if (!bin->count)
+    slab_free_obj(bin);
+}
 
 static int task_init_bin_areas(struct task_vmm_info * vmm_info, struct exec_bin *bin)
 {
@@ -158,7 +193,7 @@ static int sys_call_fork(struct pt_regs * regs)
   //fds should be new
   new_task->fd_map = bitmap_clone(cur_task->fd_map);
   new_task->no_close_on_exec = bitmap_clone(cur_task->no_close_on_exec);
-  if (!new_task->fd_map || new_task->no_close_on_exec)
+  if (!new_task->fd_map || !new_task->no_close_on_exec)
     goto bitmap_clone_error;
 
   //mm_info should be new, and should use copy on write
@@ -188,24 +223,50 @@ static int sys_call_fork(struct pt_regs * regs)
  vmm_info_clone_error:
   bitmap_destory(new_task->fd_map);
  bitmap_clone_error:
-  mm_kfree(stack);
+  mm_kfree((char*)stack);
  alloc_stack_error:
   slab_free_obj(new_task);
   return -1;
 }
 
-//return cur stack addr
-static unsigned long task_init_args(struct task_vmm_area *stack, char * args[])
-{
-  return stack->start_addr + stack->len - 12;
-}
-
-
 static int task_do_execve(const char *path, char * argv[], char * envp[])
 {
   struct task * task = task_get_cur();
-  task_put_bin(task->bin);
+  struct fs_file * file;
   int i;
+  char * buf = (char *)mm_kmalloc(PAGE_SIZE);
+  //set up args
+  char * arg_buffer = (char *)mm_kmalloc(PAGE_SIZE);
+  if (task_copy_pts_from_user(arg_buffer + 12, argv, MAX_ARG_NUM))
+    goto setup_args_error;
+
+  char ** cur = (char **)(arg_buffer + 12);// not +16 since cur[0] is not argv[0] but path_name
+  char * cur_arg = arg_buffer + PAGE_SIZE;
+  unsigned long len;
+  //1.argv[]
+  for (i = 0; i< MAX_ARG_NUM && cur[i]; i++){
+    //buf is useable now
+    if (task_copy_str_from_user(buf, cur[i], MAX_ARG_LEN))
+      goto setup_args_error;
+    len = strnlen(buf, MAX_ARG_LEN);
+    cur_arg -= len + 1;
+    memcpy(cur_arg, buf, len);
+    cur_arg[len] = '\0';
+    cur[i] = (char *)(TASK_USER_STACK_START - PAGE_SIZE + (cur_arg - arg_buffer));
+  }
+  //int main(int argc, char **argv)
+  //3. we should setup argc  and argv
+  //arg_buffer[0] is the return addr of user space _start
+  //but it is not nessary to init arg_buffer[0]
+  ((uint32 *)arg_buffer)[1] = i;
+  ((uint32 *)arg_buffer)[2] = TASK_USER_STACK_START - PAGE_SIZE + 12;
+
+  //now we can free old vmm_info
+  if (task_copy_str_from_user(buf, path, MAX_PATH_LEN))
+    goto get_path_error;
+
+  task_put_bin(task->bin);
+
   for (i = 0 ; i < MAX_OPEN_FD; i++)
     if (task->files[i] && !bitmap_check(task->no_close_on_exec, i)){
       fs_close(task->files[i]);
@@ -214,42 +275,52 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
 
   //rebuild mm_info
   task_vmm_clear(task->mm_info);
-  task->bin = fs_open(path, root_dir);
+  file = fs_open(buf, O_RDONLY, 0);
+  if (!file)
+    goto open_error;
+  task->bin = elf_parse(file);
+  if (!task->bin)
+    goto elf_parse_error;
+
+  if (task_init_bin_areas(task->mm_info, task->bin)
+      || task_init_stack(task->mm_info, TASK_USER_STACK_START, TASK_USER_STACK_LEN)
+      ||task_init_heap(task->mm_info, TASK_USER_HEAP_START, TASK_USER_HEAP_DEAULT_LEN))
+    goto init_area_error;
 
 
+  //copy to user space stack
+  if (task_copy_to_user((void *)(TASK_USER_STACK_START - PAGE_SIZE), arg_buffer, PAGE_SIZE))
+    goto init_area_error;
 
+  task_arch_launch(task->bin->entry_addr, TASK_USER_STACK_START - PAGE_SIZE);
+  //never back here
 
-  return 1;
+ init_area_error:
+  task_put_bin(task->bin);
+ elf_parse_error:
+  fs_put_file(file);
+ open_error:
+  task_put_vmm_info(task->mm_info);
+ get_path_error:
+ setup_args_error:
+  mm_kfree(arg_buffer);
+  mm_kfree(buf);
+  return -1;
 }
 
 static int sys_call_execve(struct pt_regs * regs)
 {
-  const char * path_name = (const char *)regs->ebx;
-  char ** argv = (char **)regs->ecx;
-  char ** envp = (char **)regs->edx;
+  const char * path_name = (const char *)sys_call_arg1(regs);
+  char ** argv = (char **)sys_call_arg2(regs);
+  char ** envp = (char **)sys_call_arg3(regs);
   return task_do_execve(path_name, argv, envp);
 }
 
 static int sys_call_exit(struct pt_regs * regs)
 {
-  int status = regs->ebx;
   printk("sys_call_exit\n");
   return 0;
 }
-
-static int sys_call_test3(struct pt_regs * regs)
-{
-  printk("sys_call_3\n");
-  return 0;
-}
-
-static int sys_call_test4(struct pt_regs * regs)
-{
-  printk("sys_call_4\n");
-  return 0;
-}
-
-
 
 void task_init()
 {
@@ -270,78 +341,15 @@ void task_init()
   //regist sys_call
   sys_call_regist(SYS_CALL_FORK, sys_call_fork);
   sys_call_regist(SYS_CALL_EXIT, sys_call_exit);
-  sys_call_regist(3, sys_call_test3);
-  sys_call_regist(4, sys_call_test4);
+  sys_call_regist(SYS_CALL_EXECVE, sys_call_execve);
 }
 
-
-
-
-
-
-
-static int task_init_stack(struct task_vmm_info * vmm_info, unsigned long stack_addr, unsigned long len)
-{
-  //set up area
-  struct task_vmm_area * stack_area = task_new_pure_area();
-  stack_area->do_no_page = task_do_no_page;
-  stack_area->flag = SECTION_WRITE | SECTION_NOBITS;
-  stack_area->mm_info = vmm_info;
-  stack_area->start_addr = stack_addr - len;
-  stack_area->len = len;
-  if (task_insert_area(vmm_info, stack_area)){
-    task_free_area(stack_area);
-    return 1;
-  }
-  //we need map 1 page to init exec args
-  uint32 new_page_vaddr = (uint32)mm_kmalloc(PAGE_SIZE);
-
-  if (!new_page_vaddr)
-    return 1;
-
-  vmm_info->stack = stack_area;
-  uint32 new_page_paddr = vaddr_to_paddr(new_page_vaddr);
-  task_do_no_page(stack_area, stack_addr - PAGE_SIZE, (char *)new_page_vaddr);
-  vaddr_to_page(new_page_vaddr)->private = 1;
-
-  return mmu_map(vmm_info->mm_table_vaddr, stack_addr - PAGE_SIZE, new_page_paddr, 1);
-}
-
-static int task_init_heap(struct task_vmm_info * vmm_info, unsigned long heap_addr)
-{
-  //set up heap
-  struct task_vmm_area * heap_area = task_new_pure_area();
-  heap_area->do_no_page = task_do_no_page;
-  heap_area->flag = SECTION_WRITE | SECTION_NOBITS;
-  heap_area->mm_info = vmm_info;
-  heap_area->start_addr = heap_addr;
-  heap_area->len = TASK_USER_HEAP_DEAULT_LEN;
-  if (task_insert_area(vmm_info, heap_area)){
-    task_free_area(heap_area);
-    return 1;
-  }
-  vmm_info->heap = heap_area;
-  return 0;
-}
-
-
-
-void task_free_bin(struct exec_bin * bin)
-{
-  struct list_head * cur;
-  struct section * sec;
-  list_for_each(cur, &(bin->section_list)){
-    sec = container_of(cur, struct section, list_entry);
-    mm_kfree(sec);
-  }
-  mm_kfree(bin);
-}
 
 
 
 void task_setup_init(const char* path)
 {
-  struct fs_file * file = fs_open(path, root_dir);
+  struct fs_file * file = fs_open(path, O_RDONLY, 0);
   if (!file){
     printk("can not open %s\n", path);
     return ;
@@ -373,22 +381,34 @@ void task_setup_init(const char* path)
 
   if (task_init_bin_areas(init->mm_info, init->bin)
       || task_init_stack(init->mm_info, TASK_USER_STACK_START, TASK_USER_STACK_LEN)
-      || task_init_heap(init->mm_info, TASK_USER_HEAP_START))
+      || task_init_heap(init->mm_info, TASK_USER_HEAP_START, TASK_USER_HEAP_DEAULT_LEN))
     goto init_mm_error;
 
-  uint32 cur_stack = task_init_args(init->mm_info->stack, NULL);
+  //setup cur_dir, stdin, stdout, stderr
+  init->cur_dir = fs_get_root();
+  bitmap_set(init->fd_map, 0);
+  bitmap_set(init->fd_map, 1);
+  bitmap_set(init->fd_map, 2);
+  init->files[0] = fs_open_stdin();
+  init->files[1] = fs_open_stdout();
+  init->files[2] = fs_open_stderr();
+  //stdin, stdout and stderr should not be closed on execve
+  bitmap_set(init->no_close_on_exec, 0);
+  bitmap_set(init->no_close_on_exec, 1);
+  bitmap_set(init->no_close_on_exec, 2);
 
+  //for schedule
   init->state = TASK_STATE_RUN;
   init->remain_click = MAX_TASK_RUN_CLICK;
   task_add_new_task(init);
 
   task_arch_befor_launch(init);
   //this function never return
-  task_arch_launch(init->bin->entry_addr, cur_stack);
+  task_arch_launch(init->bin->entry_addr, init->mm_info->stack->start_addr + init->mm_info->stack->len - 12);
   /******** never back here ***********************/
 
  init_mm_error:
-  task_free_bin(init->bin);
+  task_put_bin(init->bin);
 
  parse_file_error:
   task_put_vmm_info(init->mm_info);
@@ -408,10 +428,10 @@ void task_setup_init(const char* path)
 
 struct exec_bin * task_new_exec_bin()
 {
-  slab_alloc_obj(bin_cache);
+  return slab_alloc_obj(bin_cache);
 }
 
 struct section * task_new_section()
 {
-  slab_alloc_obj(section_cache);
+  return slab_alloc_obj(section_cache);
 }

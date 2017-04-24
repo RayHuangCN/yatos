@@ -36,19 +36,19 @@ static struct ext2_super_block  *fs_sb;
 static struct ext2_group_desc  *fs_group_infos;
 static uint32 group_num;
 static struct ext2_inode       *root_inode;
-static uint8 *com_buffer;
+static char *com_buffer;
 
 static struct kcache * inode_cache;
 static struct kcache * block_cache;
 static struct kcache * dir_entry_cache;
 
-static void read_block(uint32 block_num, uint8  * buffer)
+static void read_block(uint32 block_num,  char  * buffer)
 {
   uint32 sec = BLOCK_TO_SECTOR(block_num);
   disk_read(sec, sector_per_block, (uint16*)buffer);
 }
 
-static void write_block(uint32 block_num, uint8 *buffer)
+static void write_block(uint32 block_num, char *buffer)
 {
   uint32 sec = BLOCK_TO_SECTOR(block_num);
   disk_write(sec, sector_per_block, (uint16*)buffer);
@@ -94,7 +94,7 @@ static void ext2_init_sb()
   if (!fs_sb)
     go_die("fs_init_sb can not alloc sb");
 
-  disk_read(FS_START_SECTOR + 2, 2, com_buffer);
+  disk_read(FS_START_SECTOR + 2, 2, (uint16*)com_buffer);
 
   memcpy(fs_sb, com_buffer, sizeof(*fs_sb));
 
@@ -139,7 +139,7 @@ static void ext2_init_caches()
 
 void ext2_init()
 {
-  com_buffer = (uint8*)mm_kmalloc(4096);
+  com_buffer = (char*)mm_kmalloc(4096);
   ext2_init_sb();
   ext2_init_caches();
   ext2_init_group();
@@ -151,6 +151,7 @@ void ext2_sync_data(struct fs_inode* inode)
   //update all block buffer;
   struct list_head *cur;
   struct fs_data_buffer * cur_buffer;
+
   list_for_each(cur, &(inode->data_buffers)){
     cur_buffer = container_of(cur, struct fs_data_buffer, list_entry);
     if (!BUFFER_IS_DIRTY(cur_buffer))
@@ -166,7 +167,7 @@ int ext2_find_file(const char *name, struct fs_inode * parent, struct fs_inode *
   struct ext2_inode * inode  = parent->inode_data;
   uint32 file_size = inode->i_size;
   uint32 cur_blocks = 0;
-  uint8 * cur_iter;
+  char * cur_iter;
   struct ext2_dir_entry_2 * cur_dentry;
   struct ext2_inode * ret_inode;
   uint32 inode_num;
@@ -227,22 +228,22 @@ int ext2_fill_buffer(struct fs_inode* inode,struct fs_data_buffer* new_buf)
 
   }else if (block_offset < LEVE1_TOTAL){
 
-    read_block(einode->i_block[12], (uint8*)indirect_buffer);
+    read_block(einode->i_block[12], (char*)indirect_buffer);
     block_num = indirect_buffer[block_offset - 12];
 
   }else if (block_offset < LEVE2_TOTAL){
 
-    read_block(einode->i_block[13], (uint8*)indirect_buffer);
+    read_block(einode->i_block[13], (char*)indirect_buffer);
     block_num = indirect_buffer[(block_offset - 12) / LEVE1_BLOCKS];
-    read_block(block_num, (uint8*)indirect_buffer);
+    read_block(block_num, (char*)indirect_buffer);
     block_num = indirect_buffer[(block_offset -12) % LEVE1_BLOCKS];
 
   }else{
-    read_block(einode->i_block[14] , (uint8*)indirect_buffer);
+    read_block(einode->i_block[14] , (char*)indirect_buffer);
     block_num = indirect_buffer[(block_offset - 12) / LEVE2_BLOCKS];
-    read_block(block_num, (uint8*)indirect_buffer);
+    read_block(block_num, (char*)indirect_buffer);
     block_num = indirect_buffer[((block_offset - 12) % LEVE2_BLOCKS) / LEVE1_BLOCKS];
-    read_block(block_num, (uint8*)indirect_buffer);
+    read_block(block_num, (char*)indirect_buffer);
     block_num = indirect_buffer[((block_offset - 12) % LEVE2_BLOCKS) % LEVE1_BLOCKS];
   }
   read_block(block_num, new_buf->buffer);

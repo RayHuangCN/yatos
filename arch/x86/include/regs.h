@@ -11,6 +11,13 @@
 #include <arch/system.h>
 
 /********* g_define *****************************/
+
+#define sys_call_num(regs) (regs->eax)
+
+#define sys_call_arg1(regs) (regs->ebx)
+#define sys_call_arg2(regs) (regs->ecx)
+#define sys_call_arg3(regs) (regs->edx)
+
 struct pt_regs
 {
   uint32 ebx;
@@ -30,6 +37,7 @@ struct pt_regs
   uint32 esp;
   uint32 ss;
 };
+
 
 struct tss
 {

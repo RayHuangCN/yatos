@@ -7,7 +7,7 @@
 #include <yatos/bitmap.h>
 #include <yatos/mm.h>
 #include <yatos/tools.h>
-
+#include <yatos/printk.h>
 
 
 struct bitmap * bitmap_create(uint32 count)
@@ -93,6 +93,6 @@ void bitmap_clr(struct bitmap * bm, int num)
 int bitmap_check(struct bitmap* bm,int num)
 {
   if (num >= bm->count)
-    return ;
+    return 0;
   return (bm->map[num  / 32] & (1 << (num % 32)));
 }

@@ -11,7 +11,7 @@
 #include <yatos/task.h>
 #include <arch/system.h>
 #include <yatos/printk.h>
-
+#include <yatos/fs.h>
 
 
 /* 32-bit ELF base types. */

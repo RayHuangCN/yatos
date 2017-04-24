@@ -26,6 +26,9 @@ void sys_call_init()
   irq_action_init(&sys_call_action);
   sys_call_action.action = sys_call_despatch;
   irq_regist(IRQ_SYSCALL, &sys_call_action);
+
+
+
 }
 
 void sys_call_regist(int sys_call_num,sys_call_fun do_sys_call)
