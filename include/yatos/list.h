@@ -179,8 +179,6 @@ static inline int list_empty(const struct list_head *head)
 	return (head->next == head);
 }
 
-
-
 /**
  * list_rotate_left - rotate the list to the left
  * @head: the head of the list
@@ -195,6 +193,19 @@ static inline void list_rotate_left(struct list_head *head)
 	}
 }
 
+
+/**
+ *merge head2 to head1
+ */
+static inline void list_merge(struct list_head * head1, struct list_head *head2)
+{
+	if (list_empty(head2))
+		return ;
+	head1->prev->next = head2->next;
+	head2->next->prev = head1->prev;
+	head1->prev = head2->prev;
+	head2->prev->next = head1;
+}
 
 
 /**

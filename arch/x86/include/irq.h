@@ -42,6 +42,7 @@ void arch_irq_set_handler(int irq_num, irq_handler handler);
 
 void arch_irq_ack();
 
-
+uint32 arch_irq_save();
+void arch_irq_recover(uint32 saved);
 
 #endif

@@ -6,7 +6,7 @@
  ************************************************/
 #include <unistd.h>
 #include "sys_call.h"
-
+#include <sys/wait.h>
 pid_t fork()
 {
   return sys_call_1(SYS_CALL_FORK);
@@ -19,6 +19,21 @@ void _exit(int status)
 
 int execve(const char* path,char* const argv[],char* const envp[])
 {
-  return sys_call_4(SYS_CALL_EXECVE, (unsigned long)path, (unsigned long)argv
-             , (unsigned long)envp);
+  return sys_call_4(SYS_CALL_EXECVE,
+                    (unsigned long)path,
+                    (unsigned long)argv
+                    , (unsigned long)envp);
+}
+
+int usleep(__useconds_t __useconds)
+{
+  return sys_call_2(SYS_CALL_USLEEP, __useconds);
+}
+
+pid_t waitpid(__pid_t __pid,int* __stat_loc,int __options)
+{
+  return sys_call_4(SYS_CALL_WAITPID,
+                    (unsigned long)__pid,
+                    (unsigned long)__stat_loc,
+                    (unsigned long)__options);
 }

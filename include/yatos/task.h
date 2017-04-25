@@ -17,9 +17,6 @@
 
 #define KERNEL_STACK_SIZE (PAGE_SIZE<<1)
 
-#define TASK_STATE_RUN 1
-#define TASK_STATE_STOP 2
-#define TASK_STATE_ZOMBIE 3
 
 #define SECTION_WRITE 1
 #define SECTION_ALLOC 2
@@ -56,17 +53,37 @@ struct exec_bin
 };
 
 
+struct task_wait_entry
+{
+  struct task * task;
+  void *private;
+  void (* wake_up)(struct task * task, void * private);
+
+  struct list_head wait_list_entry;
+  struct list_head task_we_entry;
+};
+
+struct task_wait_queue
+{
+  struct list_head entry_list;
+};
+
+
 struct task
 {
   unsigned long cur_stack;//must be the first one
   //task manage
-  unsigned long state;
-  unsigned long pid;
+  int  state;
+  int  exit_status;
+  int  pid;
   struct list_head task_list_entry;
   struct list_head run_list_entry;
+  struct list_head wait_e_list;
   struct task * parent;
   struct list_head childs;
+  struct list_head zombie_childs;
   struct list_head child_list_entry;
+  int waitpid_blocked; //block in waitpid ?
 
   //schedule
   unsigned long remain_click;
@@ -86,6 +103,8 @@ struct task
   struct fs_inode * cur_dir;
 
   //signal
+  int sigpending; //any pending signal?
+
 };
 
 
@@ -97,5 +116,18 @@ struct exec_bin * task_new_exec_bin();
 struct section * task_new_section();
 void task_put_bin(struct exec_bin * bin);
 void task_get_bin(struct exec_bin * bin);
+
+
+struct task_wait_queue * task_new_wait_queue();
+struct task_wait_entry * task_new_wait_entry();
+void task_init_wait_queue(struct task_wait_queue * queue);
+
+void task_wait_on(struct task_wait_entry * entry, struct task_wait_queue * queue);
+void task_notify_one(struct task_wait_queue * queue);
+void task_notify_all(struct task_wait_queue * queue);
+void task_leave_all_wq(struct task * task);
+void task_leave_from_wq(struct task_wait_entry * wait_entry);
+void task_segment_fault();
+void task_exit(int status);
 
 #endif

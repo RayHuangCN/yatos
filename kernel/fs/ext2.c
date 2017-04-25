@@ -171,6 +171,7 @@ int ext2_find_file(const char *name, struct fs_inode * parent, struct fs_inode *
   struct ext2_dir_entry_2 * cur_dentry;
   struct ext2_inode * ret_inode;
   uint32 inode_num;
+  int len = strlen(name);
   while (file_size){
     //direct
     int i;
@@ -179,7 +180,7 @@ int ext2_find_file(const char *name, struct fs_inode * parent, struct fs_inode *
       cur_iter = com_buffer;
       while (cur_iter < com_buffer + block_size){
         cur_dentry = (struct ext2_dir_entry_2*)cur_iter;
-        if (!strncmp(cur_dentry->name, name, cur_dentry->name_len)){
+        if (len == cur_dentry->name_len && !strncmp(cur_dentry->name, name, cur_dentry->name_len)){
           inode_num = cur_dentry->inode;
           goto found;
         }

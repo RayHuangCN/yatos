@@ -27,8 +27,6 @@ struct irq_slot
 
 /********* g_variable ***************************/
 /********* g_function ***************************/
-void irq_disable();
-void irq_enable();
 void irq_init();
 
 int  irq_regist(int irq_num, struct irq_action * action);

@@ -32,7 +32,7 @@ static void vmm_info_distr(void *arg)
 {
   struct task_vmm_info * vmm = (struct task_vmm_info*)arg;
   task_vmm_clear(vmm);
-  mm_kfree(vmm->mm_table_vaddr);
+  mm_kfree((void *)vmm->mm_table_vaddr);
 
 }
 
@@ -50,10 +50,6 @@ static void vmm_area_distr(void *arg)
 }
 
 
-static void task_segment_error()
-{
-  printk("segment_error\n");
-}
 
 static int  page_access_fault(unsigned long addr, uint32 ecode)
 {
@@ -61,14 +57,14 @@ static int  page_access_fault(unsigned long addr, uint32 ecode)
   uint32 pdt_e = get_pdt_entry(cur_task->mm_info->mm_table_vaddr, addr);
   if (!pdt_e){
     printk("get empty pdt in page access fault\n");
-    task_segment_error();
+    task_segment_fault();
     return 1;
   }
 
   uint32 pet_e = get_pet_entry(paddr_to_vaddr(get_pet_addr(pdt_e)), addr);
   if (!pet_e){
     printk("get empty pet in page access fault\n");
-    task_segment_error();
+    task_segment_fault();
     return 1;
   }
 
@@ -78,7 +74,7 @@ static int  page_access_fault(unsigned long addr, uint32 ecode)
   //if page->private is 0, this page is readonly
   //that is, this fault is a real access fault, we should kill task
   if (!page->private){
-    task_segment_error();
+    task_segment_fault();
     return 1;
   }
   else{
@@ -91,7 +87,7 @@ static int  page_access_fault(unsigned long addr, uint32 ecode)
     pmm_put_one(page);
     unsigned long new_page = (unsigned long)mm_kmalloc(PAGE_SIZE);
     if (!new_page){
-      task_segment_error();
+      task_segment_fault();
       return 1;
     }
     struct page * pa = vaddr_to_page(new_page);
@@ -100,7 +96,7 @@ static int  page_access_fault(unsigned long addr, uint32 ecode)
     memcpy((void *)new_page, (void*)paddr_to_vaddr(page_paddr), PAGE_SIZE);
     //remap
     if (mmu_map(cur_task->mm_info->mm_table_vaddr, addr, vaddr_to_paddr(new_page), 1)){
-      task_segment_error();
+      task_segment_fault();
       return 1;
     }
   }
@@ -115,7 +111,7 @@ static int  page_fault_no_page(unsigned long fault_addr)
 
   uint32 new_page_vaddr = (uint32)mm_kmalloc(PAGE_SIZE);
   if (!new_page_vaddr){
-    task_segment_error();
+    task_segment_fault();
     return 1;
   }
 
@@ -153,7 +149,7 @@ static int  page_fault_no_page(unsigned long fault_addr)
 
   //now we setup mapping
   if (mmu_map(mm_info->mm_table_vaddr, fault_addr, new_page_paddr, writeable)){
-    task_segment_error();
+    task_segment_fault();
     return 1;
   }
   return 0;
@@ -162,7 +158,7 @@ static int  page_fault_no_page(unsigned long fault_addr)
 static int task_vmm_do_page_fault(unsigned long fault_addr, uint32 ecode)
 {
   if (fault_addr >= KERNEL_VMM_START){
-    task_segment_error();
+    task_segment_fault();
     return 1;
   }
   else if ((ecode & 1))
@@ -297,7 +293,7 @@ struct task_vmm_info * task_vmm_clone_info(struct task_vmm_info* from)
   ret->mm_table_vaddr = (unsigned long)mm_kmalloc(PAGE_SIZE);
   if (!ret->mm_table_vaddr)
     goto pdt_table_error;
-  memset(ret->mm_table_vaddr, 0, PAGE_SIZE);
+  memset((void *)ret->mm_table_vaddr, 0, PAGE_SIZE);
   //clone all pet table and setup copy on write
   uint32 * src_pdt = (uint32 *)from->mm_table_vaddr;
   uint32 * des_pdt = (uint32 *)ret->mm_table_vaddr;
@@ -356,7 +352,7 @@ static int task_check_user_space(unsigned long addr, unsigned long count, unsign
   uint32 pet_e, pdt_e;
   struct task * task = task_get_cur();
 
-  while (page_vaddr + PAGE_SIZE - addr <= count){
+  do{
     pdt_e = get_pdt_entry(task->mm_info->mm_table_vaddr, page_vaddr);
     if (!pdt_present(pdt_e) && task_vmm_do_page_fault(page_vaddr, 4))
       return 1;
@@ -371,7 +367,7 @@ static int task_check_user_space(unsigned long addr, unsigned long count, unsign
       return 1;
 
     page_vaddr += PAGE_SIZE;
-  }
+  }while (page_vaddr - addr < count);
   return 0;
 }
 int task_copy_from_user(void* des,const void* src,unsigned long count)
@@ -395,8 +391,8 @@ void task_vmm_clear(struct task_vmm_info* vmm)
   // clean all vmm_areas
   struct list_head * cur;
   struct task_vmm_area * area;
-
-  list_for_each(cur, &(vmm->vmm_area_list)){
+  struct list_head * next;
+  list_for_each_safe(cur, next, &(vmm->vmm_area_list)){
     area = container_of(cur, struct task_vmm_area, list_entry);
     slab_free_obj(area);
   }

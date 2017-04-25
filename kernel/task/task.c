@@ -20,23 +20,17 @@ static struct task *init;
 static struct kcache * task_cache;
 static struct kcache * bin_cache;
 static struct kcache * section_cache;
+static struct kcache * wait_entry_cache;
+static struct kcache * wait_queue_cache;
+
 static struct bitmap * task_map;
 
 static void task_constr(void *arg)
 {
   struct task * task = (struct task*)arg;
   INIT_LIST_HEAD(&(task->childs));
-}
-
-static void task_distr(void *arg)
-{
-  struct task * task = (struct task*)arg;
-  if (task->fd_map)
-    bitmap_destory(task->fd_map);
-  if (task->mm_info)
-    task_put_vmm_info(task->mm_info);
-  if (task->bin)
-    task_put_bin(task->bin);
+  INIT_LIST_HEAD(&(task->wait_e_list));
+  INIT_LIST_HEAD(&(task->zombie_childs));
 }
 
 static void exec_bin_constr(void *arg)
@@ -50,8 +44,9 @@ static void exec_bin_distr(void *arg)
 {
   struct exec_bin *bin = (struct exec_bin*)arg;
   struct list_head *cur;
+  struct list_head * next;
   struct section * cur_se;
-  list_for_each(cur, &(bin->section_list)){
+  list_for_each_safe(cur, next, &(bin->section_list)){
     cur_se = container_of(cur, struct section, list_entry);
     slab_free_obj(cur_se);
   }
@@ -180,6 +175,8 @@ static int sys_call_fork(struct pt_regs * regs)
 
   new_task->pid = bitmap_alloc(task_map);
   INIT_LIST_HEAD(&(new_task->childs));
+  INIT_LIST_HEAD(&(new_task->zombie_childs));
+  INIT_LIST_HEAD(&(new_task->wait_e_list));
 
   //kernel stack should be new
   unsigned long stack = (unsigned long)mm_kmalloc(KERNEL_STACK_SIZE);
@@ -235,32 +232,34 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
   struct fs_file * file;
   int i;
   char * buf = (char *)mm_kmalloc(PAGE_SIZE);
-  //set up args
   char * arg_buffer = (char *)mm_kmalloc(PAGE_SIZE);
-  if (task_copy_pts_from_user(arg_buffer + 12, argv, MAX_ARG_NUM))
-    goto setup_args_error;
 
-  char ** cur = (char **)(arg_buffer + 12);// not +16 since cur[0] is not argv[0] but path_name
-  char * cur_arg = arg_buffer + PAGE_SIZE;
-  unsigned long len;
-  //1.argv[]
-  for (i = 0; i< MAX_ARG_NUM && cur[i]; i++){
-    //buf is useable now
-    if (task_copy_str_from_user(buf, cur[i], MAX_ARG_LEN))
+  if (argv){
+
+    if (task_copy_pts_from_user(arg_buffer + 12, (void *)argv, MAX_ARG_NUM))
       goto setup_args_error;
-    len = strnlen(buf, MAX_ARG_LEN);
-    cur_arg -= len + 1;
-    memcpy(cur_arg, buf, len);
-    cur_arg[len] = '\0';
-    cur[i] = (char *)(TASK_USER_STACK_START - PAGE_SIZE + (cur_arg - arg_buffer));
-  }
-  //int main(int argc, char **argv)
-  //3. we should setup argc  and argv
-  //arg_buffer[0] is the return addr of user space _start
-  //but it is not nessary to init arg_buffer[0]
-  ((uint32 *)arg_buffer)[1] = i;
-  ((uint32 *)arg_buffer)[2] = TASK_USER_STACK_START - PAGE_SIZE + 12;
 
+    char ** cur = (char **)(arg_buffer + 12);// not +16 since cur[0] is not argv[0] but path_name
+    char * cur_arg = arg_buffer + PAGE_SIZE;
+    unsigned long len;
+    //1.argv[]
+    for (i = 0; i< MAX_ARG_NUM && cur[i]; i++){
+      //buf is useable now
+      if (task_copy_str_from_user(buf, cur[i], MAX_ARG_LEN))
+        goto setup_args_error;
+      len = strnlen(buf, MAX_ARG_LEN);
+      cur_arg -= len + 1;
+      memcpy(cur_arg, buf, len);
+      cur_arg[len] = '\0';
+      cur[i] = (char *)(TASK_USER_STACK_START - PAGE_SIZE + (cur_arg - arg_buffer));
+    }
+    //int main(int argc, char **argv)
+    //3. we should setup argc  and argv
+    //arg_buffer[0] is the return addr of user space _start
+    //but it is not nessary to init arg_buffer[0]
+    ((uint32 *)arg_buffer)[1] = i;
+    ((uint32 *)arg_buffer)[2] = TASK_USER_STACK_START - PAGE_SIZE + 12;
+  }
   //now we can free old vmm_info
   if (task_copy_str_from_user(buf, path, MAX_PATH_LEN))
     goto get_path_error;
@@ -292,6 +291,8 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
   if (task_copy_to_user((void *)(TASK_USER_STACK_START - PAGE_SIZE), arg_buffer, PAGE_SIZE))
     goto init_area_error;
 
+  mm_kfree(buf);
+  mm_kfree(arg_buffer);
   task_arch_launch(task->bin->entry_addr, TASK_USER_STACK_START - PAGE_SIZE);
   //never back here
 
@@ -316,20 +317,152 @@ static int sys_call_execve(struct pt_regs * regs)
   return task_do_execve(path_name, argv, envp);
 }
 
+
+static void task_adopt_orphans(struct task * parent)
+{
+  struct list_head * cur;
+  struct list_head * next;
+  struct task * child;
+  list_for_each_safe(cur, next, &(parent->childs)){
+    child = container_of(cur, struct task, child_list_entry);
+    child->parent = init;
+    list_move(cur, &(init->childs));
+  }
+  INIT_LIST_HEAD(&(parent->childs));
+
+  list_for_each_safe(cur, next, &(parent->zombie_childs)){
+    child = container_of(cur, struct task, child_list_entry);
+    child->parent = init;
+    list_move(cur, &(init->zombie_childs));
+  }
+  INIT_LIST_HEAD(&(parent->zombie_childs));
+}
+
+static void task_exit_notify(struct task * parent)
+{
+  if (parent->waitpid_blocked)
+    task_ready_to_run(parent);
+}
+
+void task_exit(int status)
+{
+  struct task * task = task_get_cur();
+  struct task * parent = task->parent;
+  if (task->pid == 1)
+    go_die("init task exit!\n");
+  task->exit_status = status << 8;
+  task_tobe_zombie(task);
+  task_leave_all_wq(task);
+  task_adopt_orphans(task);
+  //we should sure this is the only onwer of mm_info
+  if (task->mm_info->count == 1)
+    task_vmm_clear(task->mm_info);
+
+  task_put_bin(task->bin);
+  //close all file
+  int i;
+  for (i = 0; i < MAX_OPEN_FD; i++)
+    if (task->files[i])
+      fs_put_file(task->files[i]);
+  bitmap_destory(task->fd_map);
+  bitmap_destory(task->no_close_on_exec);
+  fs_put_inode(task->cur_dir);
+  //now we should link to parent zombie_chils list;
+  list_del(&(task->child_list_entry));
+  list_add(&(task->child_list_entry), &(parent->zombie_childs));
+  //notify parent that there is new zombie chlid;
+  task_exit_notify(parent);
+  //give up cpu
+  task_schedule();
+  /** never back here **/
+  go_die("exited task runing !\n");
+
+}
+
 static int sys_call_exit(struct pt_regs * regs)
 {
-  printk("sys_call_exit\n");
+  int status = (int)sys_call_arg1(regs);
+  task_exit(status);
   return 0;
+}
+
+
+static void task_clean_task(struct task * task)
+{
+  task_delete_task(task);
+  task_put_vmm_info(task->mm_info);
+  mm_kfree((void *)(task->kernel_stack - KERNEL_STACK_SIZE));
+  slab_free_obj(task);
+}
+
+static int sys_call_waitpid(struct pt_regs * regs)
+{
+  int pid = (int)sys_call_arg1(regs);
+  int *status = (int *)sys_call_arg2(regs);
+  struct task * cur_task = task_get_cur();
+  struct list_head * cur;
+  struct task * child = NULL;
+  struct task * ret_child = NULL;
+
+  while (1){
+    ret_child = NULL;
+    if (pid > 0){ // wait for child which task.pid = pid;
+      list_for_each(cur, &(cur_task->zombie_childs)){
+        child = container_of(cur, struct task, child_list_entry);
+        if (child->pid == pid){
+          ret_child = child;
+          break;
+        }
+      }
+    }else if (pid == -1){ //wait for any child
+      if (!list_empty(&(cur_task->zombie_childs))){
+        ret_child = container_of(cur_task->zombie_childs.next, struct task,
+                                   child_list_entry);
+      }
+    }else //error pid value
+      return -1;
+    if (ret_child)
+      break;
+    task_block(cur_task);
+    cur_task->waitpid_blocked = 1;
+    task_schedule();
+    cur_task->waitpid_blocked = 0;
+
+    if (cur_task->sigpending) //interrupted by signal
+      return -1;
+  }
+
+  list_del(&(ret_child->child_list_entry));
+  if (task_copy_to_user((void *)status, (void *)(&(ret_child->exit_status)), sizeof(int))){
+    task_segment_fault();
+    return -1;
+  }
+  task_clean_task(ret_child);
+  return ret_child->pid;
+}
+
+
+static void wait_queue_constr(void *arg)
+{
+  struct task_wait_queue * queue = (struct task_wait_queue *)arg;
+  INIT_LIST_HEAD(&(queue->entry_list));
 }
 
 void task_init()
 {
   task_arch_init();
-  task_cache = slab_create_cache(sizeof(struct task), task_constr, task_distr, "task cache");
+  task_cache = slab_create_cache(sizeof(struct task), task_constr, NULL, "task cache");
   bin_cache = slab_create_cache(sizeof(struct exec_bin), exec_bin_constr, exec_bin_distr, "bin cache");
   section_cache = slab_create_cache(sizeof(struct section), NULL, NULL, "section cache");
   if (!task_cache || !bin_cache || !section_cache)
     go_die("can not init caches\n");
+
+  wait_entry_cache = slab_create_cache(sizeof(struct task_wait_entry), NULL, NULL, "wait_entry cache");
+  wait_queue_cache = slab_create_cache(sizeof(struct task_wait_queue), wait_queue_constr, NULL, "wait_queue cache");
+
+  if (!wait_entry_cache || ! wait_queue_cache)
+    go_die("can not init wait_entry cache or wait_queue cache");
+
 
   task_vmm_init();
   task_schedule_init();
@@ -342,6 +475,7 @@ void task_init()
   sys_call_regist(SYS_CALL_FORK, sys_call_fork);
   sys_call_regist(SYS_CALL_EXIT, sys_call_exit);
   sys_call_regist(SYS_CALL_EXECVE, sys_call_execve);
+  sys_call_regist(SYS_CALL_WAITPID, sys_call_waitpid);
 }
 
 
@@ -434,4 +568,71 @@ struct exec_bin * task_new_exec_bin()
 struct section * task_new_section()
 {
   return slab_alloc_obj(section_cache);
+}
+
+
+
+struct task_wait_queue * task_new_wait_queue()
+{
+  return slab_alloc_obj(wait_queue_cache);
+}
+
+struct task_wait_entry * task_new_wait_entry()
+{
+  return slab_alloc_obj(wait_entry_cache);
+}
+void task_init_wait_queue(struct task_wait_queue* queue)
+{
+  INIT_LIST_HEAD(&(queue->entry_list));
+}
+
+void task_wait_on(struct task_wait_entry * entry,struct task_wait_queue* queue)
+{
+  list_add_tail(&(entry->wait_list_entry), &(queue->entry_list));
+  list_add_tail(&(entry->task_we_entry), &(entry->task->wait_e_list));
+}
+
+void task_leave_from_wq(struct task_wait_entry* wait_entry)
+{
+  list_del(&(wait_entry->wait_list_entry));
+  list_del(&(wait_entry->task_we_entry));
+}
+
+void task_leave_all_wq(struct task* task)
+{
+  struct list_head * cur, * next;
+  struct task_wait_entry * entry;
+
+  list_for_each_safe(cur, next, &(task->wait_e_list)){
+    entry = container_of(cur,struct task_wait_entry, task_we_entry);
+    task_leave_from_wq(entry);
+  }
+}
+
+void task_notify_one(struct task_wait_queue *queue)
+{
+  if (list_empty(&(queue->entry_list)))
+      return ;
+  struct task_wait_entry * entry = container_of(queue->entry_list.next,
+                                                struct task_wait_entry,
+                                                wait_list_entry);
+  if (entry->wake_up)
+    entry->wake_up(entry->task, entry->private);
+}
+
+void task_notify_all(struct task_wait_queue * queue)
+{
+  struct list_head * cur;
+  struct task_wait_entry * entry;
+  list_for_each(cur, &(queue->entry_list)){
+    entry = container_of(cur, struct task_wait_entry, wait_list_entry);
+    if (entry->wake_up)
+      entry->wake_up(entry->task, entry->private);
+  }
+}
+
+void task_segment_fault()
+{
+  printk("segment fault!\n");
+  task_exit(-1);
 }

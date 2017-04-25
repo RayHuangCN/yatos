@@ -27,5 +27,5 @@ void timer_unregister(struct timer_action * action);
 unsigned long timer_get_click();
 void timer_action_init(struct timer_action * action);
 
-
+int timer_usleep(unsigned long usec);
 #endif

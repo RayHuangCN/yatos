@@ -8,7 +8,8 @@
 *   Desc  : the declear of asm function
 ************************************************/
 
-/********* g_function ***************************/
+#define system_hlt() asm("hlt")
+
 extern unsigned  int pio_in8(unsigned int address);
 extern void pio_out8(unsigned int value, unsigned int address);
 extern void pio_out16(unsigned int value, unsigned int address);

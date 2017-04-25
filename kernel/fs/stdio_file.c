@@ -13,7 +13,6 @@
 
 static struct fs_file *stdin;
 static struct fs_file *stdout;
-static struct fs_file *stderr;
 
 static int std_write(struct fs_file * file, char *buffer, unsigned long count)
 {

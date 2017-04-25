@@ -6,24 +6,22 @@
  ************************************************/
 #include <unistd.h>
 #include <stdio.h>
+#include <sys/wait.h>
 pid_t child;
-
-char *ags[] = {"1", "2", "3", "4", NULL};
-char *evs[] = {"A", "B", "C", "D", NULL};
-
-
+int status;
 int main(int argc, char **argv)
 {
   if ((child = fork())){
-    //parent
-    printf("child id = %d\n", child);
-    while (1);
+    printf("init fork child = %d\n", child);
+    while (1){
+      printf("wait for any child\n");
+      child = waitpid(-1, &status, 0);
+      printf("child = %d exit_status = %d\n", child, WEXITSTATUS(status));
+    }
   }else{
     //child
-    printf("befor execve\n");
-    execve("/test", ags, evs);
+    execve("/test", NULL, NULL);
     printf("after execve\n");
-    while (1);
   }
   return 0;
 }
