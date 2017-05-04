@@ -17,9 +17,18 @@
 	const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
 	(type *)( (char *)__mptr - offsetof(type,member) );})
 
+#define ALIGN(va, align) ((unsigned long)(va) + (align - 1) / align * align)
 
 void go_die(const char *);
 
+
+#define DEBUG_ON 1
+
+#if (DEBUG_ON == 1)
+#define DEBUG(str, args...) printk(str, ##args)
+#else
+#define DEBUG(str, args...)
+#endif
 
 
 #endif

@@ -6,22 +6,37 @@
  ************************************************/
 #include <unistd.h>
 #include <stdio.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <fcntl.h>
 #include <sys/wait.h>
-pid_t child;
-int status;
+#include <sys/ioctl.h>
+int tty_max_num;
 int main(int argc, char **argv)
 {
-  if ((child = fork())){
-    printf("init fork child = %d\n", child);
-    while (1){
-      printf("wait for any child\n");
-      child = waitpid(-1, &status, 0);
-      printf("child = %d exit_status = %d\n", child, WEXITSTATUS(status));
+  pid_t shell;
+  tty_max_num = ioctl(0, 1, 0);
+  if (tty_max_num <= 0)
+    return 1;
+
+  int i;
+  for (i = 0; i < tty_max_num; i++){
+    shell = fork();
+    if (shell < 0)
+      return 1;
+
+    if (shell == 0){
+      if (ioctl(0, 2, 0) < 0) // open new tty
+        return 1;
+      execve("sbin/shell", NULL, NULL);
+      printf("can not execve shell\n");
+      return 1;
     }
-  }else{
-    //child
-    execve("/test", NULL, NULL);
-    printf("after execve\n");
+  }
+
+  while (1){
+    int ret;
+    waitpid(-1, &ret, 0);
   }
   return 0;
 }

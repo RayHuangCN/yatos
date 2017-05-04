@@ -8,8 +8,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "stdarg.h"
-int open(const char* __file,int __oflag,vararg ...)
+#include <stdarg.h>
+#include <sys/ioctl.h>
+
+int open(const char* __file,int __oflag,...)
 {
   va_list arg;
   va_start(arg, __oflag);
@@ -19,6 +21,19 @@ int open(const char* __file,int __oflag,vararg ...)
                     (unsigned long)__file,
                     (unsigned long)__oflag,
                     (unsigned long)mode);
+}
+
+int ioctl(int __fd,unsigned long int __request, ...)
+{
+  va_list arg;
+  va_start(arg, __request);
+  unsigned long req_arg = va_arg(arg, unsigned long);
+  va_end(arg);
+
+  return sys_call_4(SYS_CALL_IOCTL,
+                    (unsigned long)__fd,
+                    __request,
+                    req_arg);
 }
 
 

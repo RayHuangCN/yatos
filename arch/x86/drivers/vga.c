@@ -7,74 +7,27 @@
 #include <arch/asm.h>
 #include <arch/system.h>
 #include <arch/vga.h>
-/********* g_function ***************************/
+#include <printk/string.h>
 
-void vga_clean(void)
+void vga_set_cursor(int x,int y)
 {
-  char *buffer = (char *)VGA_VMM_START;
-  unsigned int i;
-  for (i = 0; i < 2000; i++) {
-    buffer[i << 1] = ' ';
-    buffer[ (i << 1) + 1] = 0x7;
-  }
-}
-
-unsigned short vga_get_cursor(void)
-{
-  unsigned short ans = 0;
+  unsigned short cursor = x + y * VGA_COL_NUM;
   pio_out8(0x0e, 0x3d4);
-  ans = pio_in8(0x3d5);
-
-  ans <<= 8;
-
-  pio_out8(0x0f, 0x3d4);
-  ans |= pio_in8(0x3d5);
-  return ans;
-}
-
-void vga_set_cursor(unsigned short cursor)
-{
-  pio_out8(0x0e, 0x3d4);
-  pio_out8(cursor >> 8, 0x3d5);
+  pio_out8((cursor >> 8) &  0xff, 0x3d5);
 
   pio_out8(0x0f, 0x3d4);
   pio_out8(cursor & 0xff, 0x3d5);
 }
-void putc(char c)
+
+void vga_set_base(char * base)
 {
+  memcpy((char *)VGA_VMM_START, base, PAGE_SIZE);
+}
 
-
-
-  unsigned short cursor = vga_get_cursor();
-
-  char * buffer = (char *)VGA_VMM_START;
-  if (c == '\n'){
-    cursor += 80;
-    cursor = cursor / 80 * 80;
-  }
-  else if (c == '\r')
-    cursor = cursor / 80 * 80;
-  else{
-
-    buffer[cursor << 1] = c;
-    buffer[(cursor << 1) + 1] = 0x07;
-    cursor ++;
-  }
-  if (cursor >= 2000){
-
-    unsigned short temp = cursor;
-
-    for (cursor = 0; cursor < 2000 - 80; cursor++){
-      buffer[cursor << 1] = buffer[(cursor + 80) << 1];
-      buffer[(cursor << 1) + 1] = buffer[((cursor + 80) << 1) + 1];
-    }
-    for (;cursor < 2000; cursor++){
-      buffer[cursor << 1] = ' ';
-      buffer[ (cursor << 1) + 1] = 0x7;
-    }
-
-    cursor = temp - 80;
-  }
-
-  vga_set_cursor(cursor);
+void vga_putc(char c, char attr, int x,int y)
+{
+  char * base = (char *)VGA_VMM_START;
+  int offset = (x + y * VGA_COL_NUM) * 2;
+  base[offset] = c;
+  base[offset + 1] = attr;
 }

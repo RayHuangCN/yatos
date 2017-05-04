@@ -393,6 +393,7 @@ void task_vmm_clear(struct task_vmm_info* vmm)
   struct task_vmm_area * area;
   struct list_head * next;
   list_for_each_safe(cur, next, &(vmm->vmm_area_list)){
+    list_del(cur);
     area = container_of(cur, struct task_vmm_area, list_entry);
     slab_free_obj(area);
   }

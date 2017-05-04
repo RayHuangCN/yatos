@@ -13,7 +13,7 @@
 struct bitmap
 {
   uint32 count;
-  uint32 map[];
+  uint8 map[];
 };
 
 struct bitmap * bitmap_create(uint32 count);

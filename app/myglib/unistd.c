@@ -37,3 +37,27 @@ pid_t waitpid(__pid_t __pid,int* __stat_loc,int __options)
                     (unsigned long)__stat_loc,
                     (unsigned long)__options);
 }
+
+
+pid_t getpid()
+{
+  return sys_call_1(SYS_CALL_GETPID);
+}
+
+void *sbrk(intptr_t increment)
+{
+  return (void *)sys_call_2(SYS_CALL_SBRK,
+                    (unsigned long)increment);
+}
+
+int brk(void *addr)
+{
+  return sys_call_2(SYS_CALL_BRK,
+                    (unsigned long)addr);
+}
+
+int chdir(const char* __path)
+{
+  return sys_call_2(SYS_CALL_CHDIR,
+                    (unsigned long)__path);
+}

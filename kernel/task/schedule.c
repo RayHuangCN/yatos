@@ -54,8 +54,6 @@ void task_schedule_init()
   irq_action_init(&sched_irq_action);
   sched_irq_action.action = do_schedule_count;
   irq_regist(IRQ_TIMER, &sched_irq_action);
-
-
 }
 
 static void task_switch_to(struct task * prev, struct task *next)
@@ -135,16 +133,16 @@ void task_ready_to_run(struct task* task)
 {
   uint32 irq_save = arch_irq_save();
   arch_irq_disable();
-  if (task->state != TASK_STATE_RUN)
+  if (task->state != TASK_STATE_RUN){
     task->state = TASK_STATE_RUN;
-
-  if (task->remain_click)
-    list_add(&(task->run_list_entry), run_list);
-  else{
-    list_add(&(task->run_list_entry), time_up_list);
-    task->remain_click = MAX_TASK_RUN_CLICK;
+    if (task->remain_click)
+      list_add(&(task->run_list_entry), run_list);
+    else{
+      list_add(&(task->run_list_entry), time_up_list);
+      task->remain_click = MAX_TASK_RUN_CLICK;
+    }
+    task->need_sched = 1;
   }
-  task->need_sched = 1;
   arch_irq_recover(irq_save);
 }
 

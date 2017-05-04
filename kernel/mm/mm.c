@@ -69,6 +69,10 @@ void mm_kfree(void * addr)
 {
   struct page * page = vaddr_to_page((unsigned long)addr);
 
+  if (page->type != PMM_PAGE_TYPE_KMALLOC &&
+      page->type != PMM_PAGE_TYPE_SLAB)
+    go_die("mm_kfree get wrong page type\n");
+
   if (page->type == PMM_PAGE_TYPE_SLAB)
     slab_free_obj(addr);
   else

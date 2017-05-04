@@ -15,10 +15,8 @@ extern int sprintf(char * buf, const char *fmt, ...);
 extern int vsscanf(const char * buf, const char * fmt, va_list args);
 extern int sscanf(const char * buf, const char * fmt, ...);
 
-extern void putc(  char c);
-extern int  getc(void);
+extern void putc(char c);
+extern int  getc();
 
 int printk(const char *fmt, ...);
-int scank(const char * fmt, ...);
-
 #endif /* _STDIO_H */

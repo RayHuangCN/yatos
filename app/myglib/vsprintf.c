@@ -840,7 +840,7 @@ int vsscanf(const char * buf, const char * fmt, va_list args)
  * @fmt:	formatting of buffer
  * @...:	resulting arguments
  */
-int sscanf(const char * buf, const char * fmt, ...)
+int __isoc99_sscanf(const char * buf, const char * fmt, ...)
 {
 	va_list args;
 	int i;

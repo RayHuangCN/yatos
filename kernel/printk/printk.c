@@ -3,11 +3,6 @@
 #include "yatos/printk.h"
 extern void putc( char c);
 
-int getc()
-{
-	return 0;
-}
-
 #define	OUTBUFSIZE	1024
 #define	INBUFSIZE	1024
 
@@ -31,40 +26,3 @@ int printk(const char *fmt, ...)
 	}
 	return len;
 }
-
-
-
-int scank(const char * fmt, ...)
-{
-	int i = 0;
-	unsigned char c;
-	va_list args;
-	
-	while(1)
-	{
-		c = getc();
-		putc(c);
-		if((c == 0x0d) || (c == 0x0a))
-		{
-			g_pcInBuf[i] = '\0';
-			break;
-		}
-		else
-		{
-			g_pcInBuf[i++] = c;
-		}
-	}
-	
-	va_start(args,fmt);
-	i = vsscanf(g_pcInBuf,fmt,args);
-	va_end(args);
-
-	return i;
-}
-
-
-
-
-
-
-

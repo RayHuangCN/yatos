@@ -10,7 +10,7 @@
 #include <yatos/mm.h>
 #include <yatos/task.h>
 #include <yatos/task_vmm.h>
-
+#include <yatos/schedule.h>
 static struct fs_file *stdin;
 static struct fs_file *stdout;
 
@@ -24,18 +24,34 @@ static int std_write(struct fs_file * file, char *buffer, unsigned long count)
 
 static int std_read(struct fs_file * file, char *buffer, unsigned long count)
 {
-  unsigned long i;
-  for (i = 0; i < count; i++)
-    buffer[i] = getc();
-  return i;
+  return tty_read_input(buffer, count);
+}
+
+static int std_ioctl(struct fs_file * file, int requst,  unsigned long arg)
+{
+  switch (requst){
+  case 1: // get tty max number
+    return MAX_TTY_NUM;
+  case 2: // open tty, if there is no useable tty, return -1
+    return (task_get_cur()->tty_num = tty_open_new());
+  case 3:
+    tty_clear(); // clear
+    return 0;
+  case 4: //set color
+    tty_set_color(arg);
+    return 0;
+  }
+  return -1;
 }
 
 static struct fs_inode_oper stdin_oper = {
-  .read = std_read
+  .read = std_read,
+  .ioctl = std_ioctl
 };
 
 static struct fs_inode_oper stdout_oper = {
-  .write = std_write
+  .write = std_write,
+  .ioctl = std_ioctl
 };
 
 struct fs_file * fs_open_stdin()

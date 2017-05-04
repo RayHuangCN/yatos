@@ -32,8 +32,7 @@
 #define TASK_USER_STACK_START 0xc0000000
 #define TASK_USER_STACK_LEN   0x40000000
 #define TASK_USER_HEAP_START (0xc0000000 - 0x80000000)
-#define TASK_USER_HEAP_DEAULT_LEN (PAGE_SIZE << 12) //16Mb x
-
+#define TASK_USER_HEAP_DEAULT_LEN 0
 struct section
 {
   uint32 start_vaddr;
@@ -97,14 +96,16 @@ struct task
   //opened file
   struct fs_file * files[MAX_OPEN_FD];
   struct bitmap * fd_map;
-  struct bitmap * no_close_on_exec;
+  struct bitmap * close_on_exec;
 
   //fs
-  struct fs_inode * cur_dir;
+  struct fs_file * cur_dir;
 
   //signal
   int sigpending; //any pending signal?
 
+  //tty
+  int tty_num;
 };
 
 
@@ -129,5 +130,7 @@ void task_leave_all_wq(struct task * task);
 void task_leave_from_wq(struct task_wait_entry * wait_entry);
 void task_segment_fault();
 void task_exit(int status);
+
+void task_gener_wake_up(struct task * task, void * private);
 
 #endif

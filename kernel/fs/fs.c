@@ -13,15 +13,16 @@
 #include <yatos/sys_call.h>
 #include <yatos/task_vmm.h>
 #include <yatos/schedule.h>
+#include <arch/regs.h>
 
 static struct kcache * file_cache;
 static struct kcache * inode_cache;
 static struct kcache * data_buffer_cache;
 static struct list_head inode_list;
-static struct fs_inode * root_dir;
+static struct fs_file * root_dir;
 
 
-struct fs_inode * fs_get_root()
+struct fs_file * fs_get_root()
 {
   return root_dir;
 }
@@ -54,9 +55,7 @@ void fs_put_inode(struct fs_inode * inode)
   if (!inode)
     return ;
   inode->count--;
-  if (!inode->count){
-    slab_free_obj(inode);
-  }
+  //if count == 0, we don't free inode now
 }
 
 
@@ -121,7 +120,7 @@ static void fs_init_caches()
 
 
 
-static struct fs_inode * fs_search_inode_from_list(int num)
+static struct fs_inode * fs_search_inode(int num)
 {
   struct list_head *cur;
   struct fs_inode * ret;
@@ -132,6 +131,10 @@ static struct fs_inode * fs_search_inode_from_list(int num)
   }
   return NULL;
 }
+static void fs_add_inode(struct fs_inode * inode)
+{
+  list_add_tail(&(inode->list_entry), &inode_list);
+}
 
 
 void fs_close(struct fs_file* file)
@@ -140,18 +143,23 @@ void fs_close(struct fs_file* file)
 }
 
 
-static struct fs_data_buffer * fs_inode_get_buffer(struct fs_inode * fs_inode, unsigned long block_offset)
+struct fs_data_buffer * fs_inode_get_buffer(struct fs_inode * fs_inode, unsigned long block_offset)
 {
   if (!fs_inode)
     return NULL;
+  //check recent buffer;
+  if (fs_inode->recent_data && fs_inode->recent_data->block_offset == block_offset)
+    return fs_inode->recent_data;
 
   //search
   struct list_head *cur;
   struct fs_data_buffer * after;
   list_for_each(cur, &(fs_inode->data_buffers)){
     after = container_of(cur, struct fs_data_buffer, list_entry);
-    if (after->block_offset == block_offset)
+    if (after->block_offset == block_offset){
+      fs_inode->recent_data = after;
       return after;
+    }
     if (after->block_offset > block_offset)
       break;
   }
@@ -161,7 +169,7 @@ static struct fs_data_buffer * fs_inode_get_buffer(struct fs_inode * fs_inode, u
   if (!buf)
     return NULL;
   buf->block_offset = block_offset;
-  char * buffer = mm_kmalloc(ext2_get_block_size());
+  char * buffer = mm_kmalloc(FS_DATA_BUFFER_SIZE);
   if (!buffer){
     slab_free_obj(buf);
     return NULL;
@@ -173,6 +181,7 @@ static struct fs_data_buffer * fs_inode_get_buffer(struct fs_inode * fs_inode, u
       return NULL;
   }
   list_add(&(buf->list_entry), cur->prev);
+  fs_inode->recent_data = buf;
   return buf;
 }
 
@@ -192,12 +201,11 @@ static int fs_gener_read(struct fs_file* file, char* buffer,unsigned long count)
   uint32 buff_offset;
   struct fs_data_buffer * buf;
   uint32 cpy_size;
-  uint32 buffer_size = ext2_get_block_size();
   while (count){
-    block_offset = off_set / buffer_size;
-    buff_offset = off_set % buffer_size;
+    block_offset = off_set / FS_DATA_BUFFER_SIZE;
+    buff_offset = off_set % FS_DATA_BUFFER_SIZE;
     buf = fs_inode_get_buffer(inode, block_offset);
-    cpy_size = buffer_size - buff_offset;
+    cpy_size = FS_DATA_BUFFER_SIZE - buff_offset;
     if (cpy_size > count)
       cpy_size = count;
 
@@ -220,13 +228,17 @@ static int fs_gener_write(struct fs_file* file,char* buffer,unsigned long count)
   uint32 buff_offset;
   struct fs_data_buffer * buf;
   uint32 cpy_size;
-  uint32 buffer_size = ext2_get_block_size();
+
+  file->cur_offset += count;
+  if (count && file->cur_offset > ext2_inode->i_size)
+    ext2_inode->i_size = file->cur_offset;
+
   while (count){
-    block_offset = off_set / buffer_size * buffer_size;
-    buff_offset = off_set % buffer_size;
+    block_offset = off_set / FS_DATA_BUFFER_SIZE;
+    buff_offset = off_set % FS_DATA_BUFFER_SIZE;
     buf = fs_inode_get_buffer(inode, block_offset);
     BUFFER_SET_DIRTY(buf);
-    cpy_size = buffer_size - buff_offset;
+    cpy_size = FS_DATA_BUFFER_SIZE - buff_offset;
     if (cpy_size > count)
       cpy_size = count;
 
@@ -235,9 +247,6 @@ static int fs_gener_write(struct fs_file* file,char* buffer,unsigned long count)
     write_count += cpy_size;
     count -= cpy_size;
   }
-  file->cur_offset += write_count;
-  if (write_count && file->cur_offset > ext2_inode->i_size)
-    ext2_inode->i_size = file->cur_offset;
   return write_count;
 }
 
@@ -248,7 +257,15 @@ static void fs_gener_sync(struct fs_inode  *inode)
 
 static void fs_gener_release(struct fs_inode * inode)
 {
-  ext2_free_inode(inode->inode_data);
+  ext2_release_inode((struct ext2_inode*)inode->inode_data);
+}
+
+static int fs_gener_readdir(struct fs_file * file, struct kdirent *ret)
+{
+  struct fs_inode * inode = file->inode;
+  if (!S_ISDIR(inode->mode))
+    return -1;
+  return ext2_readdir(file, ret);
 }
 
 static off_t fs_gener_seek(struct fs_file* file,off_t offset,int whence)
@@ -276,7 +293,8 @@ static struct fs_inode_oper gerner_inode_oper = {
   .write = fs_gener_write,
   .seek = fs_gener_seek,
   .sync = fs_gener_sync,
-  .release = fs_gener_release
+  .release = fs_gener_release,
+  .readdir = fs_gener_readdir
 };
 
 struct fs_file * fs_open(const char * path, int flag, mode_t mode)
@@ -285,22 +303,22 @@ struct fs_file * fs_open(const char * path, int flag, mode_t mode)
   struct task * task = task_get_cur();
   struct fs_inode * cur_inode;
   int i = 0;
+
   while (path[i] && (path[i] == ' ' || path[i] == '\t'))
     i++;
   if (!path || !path[i])
     return NULL;
 
   if (path[i] == '/')
-    cur_inode = root_dir;
+    cur_inode = root_dir->inode;
   else
-    cur_inode = task->cur_dir;
-
+    cur_inode = task->cur_dir->inode;
   // now open
   char name[MAX_FILE_NAME_LEN];
   int p = 0;
   const char * cur_c = path;
-  struct fs_inode * temp_fs_inode = cur_inode;
-  struct ext2_inode * ext2_inode = temp_fs_inode->inode_data;
+  struct ext2_inode * ext2_inode = cur_inode->inode_data;
+  int inode_num;
 
   while (*cur_c){
     p = 0;
@@ -319,33 +337,40 @@ struct fs_file * fs_open(const char * path, int flag, mode_t mode)
       printk("not a dir\n\r");
       return NULL;
     }
-    struct fs_inode * ret = slab_alloc_obj(inode_cache);
-    if (!ret)
-      return NULL;
-    if (!ext2_find_file(name, temp_fs_inode, ret)){
-      printk("can not find %s\n\r", name);
-      return NULL;
+    if ((inode_num = ext2_find_file(name, cur_inode)) == -1){
+      const char * tmp = cur_c;
+      while (*tmp && *tmp == '/')
+        tmp++;
+      if (*tmp) //this means what we not find is just a mid dir
+        return NULL;
+      if ((flag & O_CREAT) && !(flag & O_EXCL)){
+        if ((inode_num = ext2_create_file(name, cur_inode, mode)) == -1)
+            return NULL;
+      }else
+        return NULL;
     }
-
-    if (temp_fs_inode != cur_inode)
-      fs_put_inode(temp_fs_inode);
-    temp_fs_inode  = ret;
-    ext2_inode = temp_fs_inode->inode_data;
+    cur_inode  = fs_search_inode(inode_num);
+    if (!cur_inode){
+      cur_inode = slab_alloc_obj(inode_cache);
+      if (!cur_inode)
+        return NULL;
+      ext2_fill_inode(cur_inode, inode_num);
+      //make count to be zero since we don't change inode count during searching inode
+      fs_put_inode(cur_inode);
+      //add to inode cache
+      fs_add_inode(cur_inode);
+     }
+    ext2_inode = cur_inode->inode_data;
   }
 
   struct fs_file * ret_file = (struct fs_file *)slab_alloc_obj(file_cache);
-  ret_file->inode = fs_search_inode_from_list(temp_fs_inode->inode_num);
-
-  if (ret_file->inode){
-    fs_get_inode(ret_file->inode);
-    fs_put_inode(temp_fs_inode);
-  }
-  else{
-    ret_file->inode = temp_fs_inode;
-    list_add_tail(&(temp_fs_inode->list_entry), &inode_list);
-    ret_file->inode->action = &gerner_inode_oper;
-  }
+  if (!ret_file)
+    return NULL;
+  ret_file->inode = cur_inode;
+  cur_inode->action = &gerner_inode_oper;
   ret_file->flag = flag;
+  //now we should incre inode count
+  fs_get_inode(cur_inode);
   return ret_file;
 }
 
@@ -397,7 +422,7 @@ static int sys_call_open(struct pt_regs * regs)
   if (!tmp_buffer)
     return -1;
 
-  if (task_copy_from_user(tmp_buffer, path, strnlen(path, MAX_PATH_LEN)))
+  if (task_copy_str_from_user(tmp_buffer, path, MAX_PATH_LEN))
     goto copy_from_user_error;
 
   file = fs_open(tmp_buffer, flag, mode);
@@ -406,6 +431,7 @@ static int sys_call_open(struct pt_regs * regs)
 
   fd = bitmap_alloc(task->fd_map);
   if (fd >= 0){
+    mm_kfree(tmp_buffer);
     task->files[fd] = file;
     return fd;
   }
@@ -477,7 +503,7 @@ static int sys_call_write(struct pt_regs *regs)
 static int sys_call_seek(struct pt_regs * regs)
 {
   int fd = (int)sys_call_arg1(regs);
-  if (fd < 0)
+  if (fd < 0 || fd >= MAX_OPEN_FD)
     return -1;
   off_t offset = (off_t)sys_call_arg2(regs);
   int whence = (int)sys_call_arg3(regs);
@@ -493,7 +519,7 @@ static int sys_call_seek(struct pt_regs * regs)
 static int sys_call_sync(struct pt_regs *regs)
 {
   int fd = (int)sys_call_arg1(regs);
-  if (fd < 0)
+  if (fd < 0 || fd >= MAX_OPEN_FD)
     return -1;
   struct task *task = task_get_cur();
   struct fs_file * file = task->files[fd];
@@ -506,7 +532,7 @@ static int sys_call_sync(struct pt_regs *regs)
 static int sys_call_close(struct pt_regs * regs)
 {
   int fd = (int)sys_call_arg1(regs);
-  if (fd < 0)
+  if (fd < 0 || fd >= MAX_OPEN_FD)
     return -1;
   struct task * task = task_get_cur();
   struct fs_file * file = task->files[fd];
@@ -516,6 +542,43 @@ static int sys_call_close(struct pt_regs * regs)
   return 0;
 }
 
+static int sys_call_ioctl(struct pt_regs * regs)
+{
+  int fd  = (int)sys_call_arg1(regs);
+  int requst = (int)sys_call_arg2(regs);
+  unsigned long arg = (unsigned long)sys_call_arg3(regs);
+
+  if (fd < 0 || fd >= MAX_OPEN_FD)
+    return -1;
+
+  struct task * task = task_get_cur();
+  struct fs_file * file = task->files[fd];
+
+  if (!file || !file->inode || !file->inode->action->ioctl)
+    return -1;
+
+  return file->inode->action->ioctl(file, requst, arg);
+}
+
+static int sys_call_readdir(struct pt_regs * regs)
+{
+  int fd = (int)sys_call_arg1(regs);
+  struct kdirent * ret_buffer = (struct kdirent *)sys_call_arg2(regs);
+  if (fd < 0 || fd >= MAX_OPEN_FD)
+    return -1;
+  struct task * task = task_get_cur();
+  struct fs_file * file = task->files[fd];
+
+  if (!file || !file->inode || !file->inode->action->readdir)
+    return -1;
+  struct kdirent tmp_buffer;
+  int ret;
+  if (!(ret = file->inode->action->readdir(file, &tmp_buffer))){
+    if (task_copy_to_user((char *)ret_buffer, (char*)&tmp_buffer, sizeof(struct kdirent)))
+      return -1;
+  }
+  return ret;
+}
 
 void fs_init()
 {
@@ -523,8 +586,11 @@ void fs_init()
   fs_init_caches();
   INIT_LIST_HEAD(&(inode_list));
   ext2_init();
-  root_dir = slab_alloc_obj(inode_cache);
-  ext2_init_root(root_dir);
+  root_dir = slab_alloc_obj(file_cache);
+  root_dir->inode = slab_alloc_obj(inode_cache);
+  root_dir->inode->action = &gerner_inode_oper;
+  ext2_init_root(root_dir->inode);
+  fs_add_inode(root_dir->inode);
 
   sys_call_regist(SYS_CALL_OPEN, sys_call_open);
   sys_call_regist(SYS_CALL_READ, sys_call_read);
@@ -532,6 +598,8 @@ void fs_init()
   sys_call_regist(SYS_CALL_SEEK, sys_call_seek);
   sys_call_regist(SYS_CALL_SYNC, sys_call_sync);
   sys_call_regist(SYS_CALL_CLOSE, sys_call_close);
+  sys_call_regist(SYS_CALL_IOCTL, sys_call_ioctl);
+  sys_call_regist(SYS_CALL_READDIR, sys_call_readdir);
 }
 
 struct fs_file * fs_new_file()

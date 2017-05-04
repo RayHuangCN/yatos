@@ -31,6 +31,7 @@ static void task_constr(void *arg)
   INIT_LIST_HEAD(&(task->childs));
   INIT_LIST_HEAD(&(task->wait_e_list));
   INIT_LIST_HEAD(&(task->zombie_childs));
+  task->tty_num = -1;
 }
 
 static void exec_bin_constr(void *arg)
@@ -152,7 +153,7 @@ static int task_init_bin_areas(struct task_vmm_info * vmm_info, struct exec_bin 
 
     if (task_insert_area(vmm_info, cur_area)){
       printk("insert area error\n");
-      return 1;
+      return -1;
     }
   }
   return 0;
@@ -164,15 +165,17 @@ static void task_adopt(struct task * parent, struct task *child)
   list_add_tail(&(child->child_list_entry), &(parent->childs));
 }
 
+
 //fork new task
 static int sys_call_fork(struct pt_regs * regs)
 {
   struct task * new_task = slab_alloc_obj(task_cache);
   struct task * cur_task = task_get_cur();
-  if (!new_task)
+  if (!new_task){
+    DEBUG("sys_call_fork can not alloc new_task\n");
     return -1;
+  }
   memcpy(new_task, cur_task, sizeof(*new_task));
-
   new_task->pid = bitmap_alloc(task_map);
   INIT_LIST_HEAD(&(new_task->childs));
   INIT_LIST_HEAD(&(new_task->zombie_childs));
@@ -180,30 +183,40 @@ static int sys_call_fork(struct pt_regs * regs)
 
   //kernel stack should be new
   unsigned long stack = (unsigned long)mm_kmalloc(KERNEL_STACK_SIZE);
-  if (!stack)
+  if (!stack){
+    DEBUG("sys_call_fork can not alloc stack\n");
     goto alloc_stack_error;
+  }
   new_task->kernel_stack = stack + KERNEL_STACK_SIZE;
   memcpy((void *)stack, (void *)(cur_task->kernel_stack - KERNEL_STACK_SIZE), KERNEL_STACK_SIZE);
 
   new_task->remain_click = MAX_TASK_RUN_CLICK;
 
-  //fds should be new
   new_task->fd_map = bitmap_clone(cur_task->fd_map);
-  new_task->no_close_on_exec = bitmap_clone(cur_task->no_close_on_exec);
-  if (!new_task->fd_map || !new_task->no_close_on_exec)
+  new_task->close_on_exec = bitmap_create(cur_task->close_on_exec->count);
+  if (!new_task->fd_map || !new_task->close_on_exec){
+    DEBUG("sys_call_fork can not create bitmap\n");
     goto bitmap_clone_error;
+  }
 
   //mm_info should be new, and should use copy on write
   new_task->mm_info = task_vmm_clone_info(cur_task->mm_info);
-  if (!new_task->mm_info)
+  if (!new_task->mm_info){
+    DEBUG("sys_call_fork can not clone vmm_info\n");
     goto vmm_info_clone_error;
-
+  }
   //update all count of inference
   task_get_bin(cur_task->bin);
+  fs_get_file(cur_task->cur_dir);
   int i;
-  for (i = 0; i < MAX_OPEN_FD; i++)
-    if (cur_task->files[i])
+  for (i = 0; i < MAX_OPEN_FD; i++){
+    if (cur_task->files[i] && !bitmap_check(cur_task->close_on_exec, i))
       fs_get_file(cur_task->files[i]);
+    else if (cur_task->files[i]){
+      new_task->files[i] = NULL;
+      bitmap_free(new_task->fd_map, i);
+    }
+  }
 
   //setup task relationship
   task_adopt(cur_task, new_task);
@@ -215,7 +228,6 @@ static int sys_call_fork(struct pt_regs * regs)
   task_arch_init_run_context(new_task, 0);
 
   return new_task->pid;
-
   //error
  vmm_info_clone_error:
   bitmap_destory(new_task->fd_map);
@@ -230,9 +242,20 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
 {
   struct task * task = task_get_cur();
   struct fs_file * file;
+  struct exec_bin * bin;
   int i;
   char * buf = (char *)mm_kmalloc(PAGE_SIZE);
   char * arg_buffer = (char *)mm_kmalloc(PAGE_SIZE);
+  if (task_copy_str_from_user(buf, path, MAX_PATH_LEN))
+    goto get_path_error;
+
+  file = fs_open(buf, O_RDONLY, 0);
+  if (!file)
+    goto open_error;
+  bin = elf_parse(file);
+  if (!bin)
+    goto elf_parse_error;
+
 
   if (argv){
 
@@ -261,25 +284,12 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
     ((uint32 *)arg_buffer)[2] = TASK_USER_STACK_START - PAGE_SIZE + 12;
   }
   //now we can free old vmm_info
-  if (task_copy_str_from_user(buf, path, MAX_PATH_LEN))
-    goto get_path_error;
 
   task_put_bin(task->bin);
 
-  for (i = 0 ; i < MAX_OPEN_FD; i++)
-    if (task->files[i] && !bitmap_check(task->no_close_on_exec, i)){
-      fs_close(task->files[i]);
-      bitmap_free(task->fd_map, i);
-    }
-
   //rebuild mm_info
   task_vmm_clear(task->mm_info);
-  file = fs_open(buf, O_RDONLY, 0);
-  if (!file)
-    goto open_error;
-  task->bin = elf_parse(file);
-  if (!task->bin)
-    goto elf_parse_error;
+  task->bin = bin;
 
   if (task_init_bin_areas(task->mm_info, task->bin)
       || task_init_stack(task->mm_info, TASK_USER_STACK_START, TASK_USER_STACK_LEN)
@@ -297,13 +307,14 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
   //never back here
 
  init_area_error:
+  task_put_vmm_info(task->mm_info);
+
+ setup_args_error:
   task_put_bin(task->bin);
  elf_parse_error:
   fs_put_file(file);
  open_error:
-  task_put_vmm_info(task->mm_info);
  get_path_error:
- setup_args_error:
   mm_kfree(arg_buffer);
   mm_kfree(buf);
   return -1;
@@ -365,8 +376,8 @@ void task_exit(int status)
     if (task->files[i])
       fs_put_file(task->files[i]);
   bitmap_destory(task->fd_map);
-  bitmap_destory(task->no_close_on_exec);
-  fs_put_inode(task->cur_dir);
+  bitmap_destory(task->close_on_exec);
+  fs_put_file(task->cur_dir);
   //now we should link to parent zombie_chils list;
   list_del(&(task->child_list_entry));
   list_add(&(task->child_list_entry), &(parent->zombie_childs));
@@ -437,8 +448,61 @@ static int sys_call_waitpid(struct pt_regs * regs)
     task_segment_fault();
     return -1;
   }
+  int ret_pid = ret_child->pid;
   task_clean_task(ret_child);
-  return ret_child->pid;
+  return ret_pid;
+}
+
+static int sys_call_brk(struct pt_regs * regs)
+{
+  unsigned long addr = (unsigned long)sys_call_arg1(regs);
+  struct task * task = task_get_cur();
+  if (addr < task->mm_info->heap->start_addr ||
+      addr > task->mm_info->stack->start_addr - task->mm_info->stack->len)
+    return -1;
+  task->mm_info->heap->len = addr - task->mm_info->heap->start_addr;
+  return 0;
+}
+
+static int sys_call_sbrk(struct pt_regs * regs)
+{
+  int incre = (int)sys_call_arg1(regs);
+  struct task* task = task_get_cur();
+  unsigned long cur_end;
+  cur_end = task->mm_info->heap->len + task->mm_info->heap->start_addr;
+  if (cur_end + incre > task->mm_info->stack->start_addr)
+    return -1;
+  task->mm_info->heap->len += incre;
+  return cur_end;
+
+}
+
+static int sys_call_chdir(struct pt_regs * regs)
+{
+  const char * path = (const char *)sys_call_arg1(regs);
+  struct task * task = task_get_cur();
+  char * tmp_buffer = (char *)mm_kmalloc(MAX_PATH_LEN + 1);
+  struct fs_file * file;
+  if (task_copy_str_from_user(tmp_buffer, path, MAX_PATH_LEN))
+    goto copy_error;
+  file = fs_open(tmp_buffer, O_RDONLY, 0);
+  if (!file || !S_ISDIR(file->inode->mode))
+    goto open_error;
+  fs_put_file(task->cur_dir);
+  task->cur_dir = file;
+  mm_kfree(tmp_buffer);
+  return 0;
+
+ open_error:
+ copy_error:
+  mm_kfree(tmp_buffer);
+  return -1;
+}
+
+
+static int sys_call_getpid(struct pt_regs * regs)
+{
+  return task_get_cur()->pid;
 }
 
 
@@ -476,6 +540,10 @@ void task_init()
   sys_call_regist(SYS_CALL_EXIT, sys_call_exit);
   sys_call_regist(SYS_CALL_EXECVE, sys_call_execve);
   sys_call_regist(SYS_CALL_WAITPID, sys_call_waitpid);
+  sys_call_regist(SYS_CALL_SBRK, sys_call_sbrk);
+  sys_call_regist(SYS_CALL_GETPID,sys_call_getpid);
+  sys_call_regist(SYS_CALL_BRK, sys_call_brk);
+  sys_call_regist(SYS_CALL_CHDIR, sys_call_chdir);
 }
 
 
@@ -494,8 +562,8 @@ void task_setup_init(const char* path)
     goto task_alloc_error;
 
   init->fd_map = bitmap_create(MAX_OPEN_FD);
-  init->no_close_on_exec = bitmap_create(MAX_OPEN_FD);
-  if (!init->fd_map || !init->no_close_on_exec)
+  init->close_on_exec = bitmap_create(MAX_OPEN_FD);
+  if (!init->fd_map || !init->close_on_exec)
     goto create_fd_map_error;
 
   init->kernel_stack = (unsigned long)(init_stack_space + KERNEL_STACK_SIZE);
@@ -527,9 +595,6 @@ void task_setup_init(const char* path)
   init->files[1] = fs_open_stdout();
   init->files[2] = fs_open_stderr();
   //stdin, stdout and stderr should not be closed on execve
-  bitmap_set(init->no_close_on_exec, 0);
-  bitmap_set(init->no_close_on_exec, 1);
-  bitmap_set(init->no_close_on_exec, 2);
 
   //for schedule
   init->state = TASK_STATE_RUN;
@@ -588,14 +653,20 @@ void task_init_wait_queue(struct task_wait_queue* queue)
 
 void task_wait_on(struct task_wait_entry * entry,struct task_wait_queue* queue)
 {
+  uint32 save = arch_irq_save();
+  arch_irq_disable();
   list_add_tail(&(entry->wait_list_entry), &(queue->entry_list));
   list_add_tail(&(entry->task_we_entry), &(entry->task->wait_e_list));
+  arch_irq_recover(save);
 }
 
 void task_leave_from_wq(struct task_wait_entry* wait_entry)
 {
+  uint32 save = arch_irq_save();
+  arch_irq_disable();
   list_del(&(wait_entry->wait_list_entry));
   list_del(&(wait_entry->task_we_entry));
+  arch_irq_recover(save);
 }
 
 void task_leave_all_wq(struct task* task)
@@ -635,4 +706,9 @@ void task_segment_fault()
 {
   printk("segment fault!\n");
   task_exit(-1);
+}
+
+void task_gener_wake_up(struct task* task,void* private)
+{
+  task_ready_to_run(task);
 }

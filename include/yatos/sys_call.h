@@ -14,6 +14,10 @@
 #define SYS_CALL_EXIT 2
 #define SYS_CALL_EXECVE 3
 #define SYS_CALL_WAITPID 4
+#define SYS_CALL_SBRK 5
+#define SYS_CALL_BRK 6
+#define SYS_CALL_GETPID 7
+#define SYS_CALL_CHDIR 8
 
 //file operation
 #define SYS_CALL_OPEN 10
@@ -22,6 +26,8 @@
 #define SYS_CALL_SEEK 13
 #define SYS_CALL_CLOSE 14
 #define SYS_CALL_SYNC 15
+#define SYS_CALL_IOCTL 16
+#define SYS_CALL_READDIR 17
 
 //timer
 #define SYS_CALL_USLEEP 30

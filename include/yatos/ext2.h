@@ -11,7 +11,7 @@
 #include <yatos/list.h>
 #include <yatos/printk.h>
 #include <yatos/fs.h>
-
+#include <yatos/bitmap.h>
 /* data type for block offset of block group */
 typedef int ext2_grpblk_t;
 
@@ -120,6 +120,8 @@ struct ext2_inode {
 #define EXT2_IFDIR 0x4000//directory
 #define EXT2_IFCHR 0x2000//character device
 #define EXT2_IFIFO 0x1000//fifo
+
+
 //-- process execution user/group override --
 #define EXT2_ISUID 0x0800//Set process User ID
 #define EXT2_ISGID 0x0400//Set process Group ID
@@ -134,6 +136,8 @@ struct ext2_inode {
 #define EXT2_IROTH 0x0004//others read
 #define EXT2_IWOTH 0x0002//others write
 #define EXT2_IXOTH 0x0001 //others execute
+
+
 /*
  * Mount flags
  */
@@ -374,11 +378,17 @@ void ext2_init();
 //sync inode and data
 void ext2_sync_data(struct fs_inode *inode);
 
-int ext2_find_file(const char *name, struct fs_inode *parent,  struct fs_inode * ret_inode);
+//return inode num
+int ext2_find_file(const char *name, struct fs_inode *parent);
+int ext2_create_file(const char *name, struct fs_inode * parent, uint16 mode);
 
-void ext2_free_inode(struct ext2_inode * inode);
 void ext2_init_root(struct fs_inode * root);
 int ext2_fill_buffer(struct fs_inode * inode, struct fs_data_buffer * new_buf);
-
+void ext2_release_inode(struct ext2_inode * inode);
 uint32 ext2_get_block_size();
+
+int ext2_fill_inode(struct fs_inode *inode, int inode_num);
+int ext2_readdir(struct fs_file * file, struct kdirent *ret);
+
+
 #endif
