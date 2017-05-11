@@ -12,6 +12,7 @@
 #include <yatos/schedule.h>
 #include <yatos/tools.h>
 #include <yatos/irq.h>
+#include <yatos/errno.h>
 
 static uint32 keymap[NR_SCAN_CODES * MAP_COLS] = {
 
@@ -287,11 +288,12 @@ void kb_irq_handler(void *private, struct pt_regs * regs)
   uint32 * key;
   struct task_wait_entry * wait_entry;
   struct task_wait_queue * wait_queue;
+  int col;
+  int tty_num;
   if (!cur_tty || !cur_tty->wait_queue)
     return ;
-
   //deal code
-  int col = 0;
+  col = 0;
   if (code == 0xE1){
   }else if (code == 0xE0){
   }else{
@@ -348,7 +350,7 @@ void kb_irq_handler(void *private, struct pt_regs * regs)
     case F11:
     case F12:
       if (make){
-        int tty_num = key[col] - F1;
+        tty_num = key[col] - F1;
         if (ctrl_l || ctrl_r)
           tty_change_to(tty_num);
       }
@@ -392,10 +394,12 @@ void kb_irq_handler(void *private, struct pt_regs * regs)
 
 static void tty_putc(char c, struct tty * tty)
 {
+  char *base;
+  int offset;
+
   if (!tty)
     return ;
-  char * base = tty->base;
-  int offset ;
+  base = tty->base;
   if (c == '\n'){
     tty->cur_col = 0;
     tty->cur_row++;
@@ -459,16 +463,16 @@ int tty_read_input(char * buffer, unsigned long len)
   int tty_num = task->tty_num;
 
   if (tty_num < 0 || tty_num >= MAX_TTY_NUM)
-    return -1;
+    return -EINVAL;
 
   struct tty * tty = ttys + tty_num;
   struct task_wait_queue * wait_queue = tty->wait_queue;
 
   if (!wait_queue)
-    return -1;
+    return -ENOTTY;
 
   if (!list_empty(&(wait_queue->entry_list)))
-    return -1;
+    return -EBUSY;
 
   struct task_wait_entry entry;
   entry.task = task;

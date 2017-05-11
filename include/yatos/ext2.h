@@ -389,6 +389,11 @@ uint32 ext2_get_block_size();
 
 int ext2_fill_inode(struct fs_inode *inode, int inode_num);
 int ext2_readdir(struct fs_file * file, struct kdirent *ret);
-
+int ext2_mkdir(const char * path, uint16 mode);
+int ext2_link(const char * oldpath, const char * newpath);
+int ext2_rmdir(const char * path);
+int ext2_unlink(const char * path);
+int ext2_truncate(struct fs_inode * inode, off_t length);
+void ext2_free_inode(int inode_num);
 
 #endif

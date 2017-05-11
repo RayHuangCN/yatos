@@ -11,6 +11,7 @@
 #include <yatos/task.h>
 #include <yatos/task_vmm.h>
 #include <yatos/schedule.h>
+#include <yatos/errno.h>
 static struct fs_file *stdin;
 static struct fs_file *stdout;
 
@@ -33,7 +34,10 @@ static int std_ioctl(struct fs_file * file, int requst,  unsigned long arg)
   case 1: // get tty max number
     return MAX_TTY_NUM;
   case 2: // open tty, if there is no useable tty, return -1
-    return (task_get_cur()->tty_num = tty_open_new());
+    (task_get_cur()->tty_num = tty_open_new());
+    if (task_get_cur()->tty_num < 0)
+      return -ENOTTY;
+    return 0;
   case 3:
     tty_clear(); // clear
     return 0;
@@ -41,7 +45,7 @@ static int std_ioctl(struct fs_file * file, int requst,  unsigned long arg)
     tty_set_color(arg);
     return 0;
   }
-  return -1;
+  return -EINVAL;
 }
 
 static struct fs_inode_oper stdin_oper = {

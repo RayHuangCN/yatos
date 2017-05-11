@@ -103,6 +103,8 @@ struct task
 
   //signal
   int sigpending; //any pending signal?
+  struct bitmap * sig_map;
+
 
   //tty
   int tty_num;
@@ -121,6 +123,9 @@ void task_get_bin(struct exec_bin * bin);
 
 struct task_wait_queue * task_new_wait_queue();
 struct task_wait_entry * task_new_wait_entry();
+void task_free_wait_queue(struct task_wait_queue *queue);
+void task_free_wait_entry(struct task_wait_entry * entry);
+
 void task_init_wait_queue(struct task_wait_queue * queue);
 
 void task_wait_on(struct task_wait_entry * entry, struct task_wait_queue * queue);

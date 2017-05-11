@@ -26,8 +26,19 @@
 #define SYS_CALL_SYNC 15
 #define SYS_CALL_IOCTL 16
 #define SYS_CALL_READDIR 17
+#define SYS_CALL_MKDIR 18
+#define SYS_CALL_LINK 19
+#define SYS_CALL_UNLINK 20
+#define SYS_CALL_RMDIR 21
+#define SYS_CALL_FTRUNCATE 22
+#define SYS_CALL_FSSYNC 23
+#define SYS_CALL_FSTAT 24
+#define SYS_CALL_DUP3 25
+#define SYS_CALL_FCNTL 26
 
 #define SYS_CALL_USLEEP 30
+
+#define SYS_CALL_PIPE 40
 
 int sys_call_1(unsigned long call_num);
 

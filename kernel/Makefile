@@ -8,3 +8,4 @@ obj-y += timer/
 obj-y += task/
 obj-y += mm/
 obj-y += fs/
+obj-y += ipc/

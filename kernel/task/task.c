@@ -14,6 +14,8 @@
 #include <yatos/sys_call.h>
 #include <yatos/schedule.h>
 #include <yatos/fs.h>
+#include <yatos/errno.h>
+
 
 char init_stack_space[KERNEL_STACK_SIZE];
 static struct task *init;
@@ -171,9 +173,11 @@ static int sys_call_fork(struct pt_regs * regs)
 {
   struct task * new_task = slab_alloc_obj(task_cache);
   struct task * cur_task = task_get_cur();
+  int ret = -1;
+  int i;
   if (!new_task){
     DEBUG("sys_call_fork can not alloc new_task\n");
-    return -1;
+    return -ENOMEM;
   }
   memcpy(new_task, cur_task, sizeof(*new_task));
   new_task->pid = bitmap_alloc(task_map);
@@ -185,6 +189,7 @@ static int sys_call_fork(struct pt_regs * regs)
   unsigned long stack = (unsigned long)mm_kmalloc(KERNEL_STACK_SIZE);
   if (!stack){
     DEBUG("sys_call_fork can not alloc stack\n");
+    ret = -ENOMEM;
     goto alloc_stack_error;
   }
   new_task->kernel_stack = stack + KERNEL_STACK_SIZE;
@@ -193,31 +198,27 @@ static int sys_call_fork(struct pt_regs * regs)
   new_task->remain_click = MAX_TASK_RUN_CLICK;
 
   new_task->fd_map = bitmap_clone(cur_task->fd_map);
-  new_task->close_on_exec = bitmap_create(cur_task->close_on_exec->count);
+  new_task->close_on_exec = bitmap_clone(cur_task->close_on_exec);
   if (!new_task->fd_map || !new_task->close_on_exec){
     DEBUG("sys_call_fork can not create bitmap\n");
+    ret = -ENOMEM;
     goto bitmap_clone_error;
   }
+  for (i = 0; i < MAX_OPEN_FD; i++)
+    if (new_task->files[i])
+      fs_get_file(new_task->files[i]);
+
 
   //mm_info should be new, and should use copy on write
   new_task->mm_info = task_vmm_clone_info(cur_task->mm_info);
   if (!new_task->mm_info){
     DEBUG("sys_call_fork can not clone vmm_info\n");
+    ret = -ENOMEM;
     goto vmm_info_clone_error;
   }
   //update all count of inference
   task_get_bin(cur_task->bin);
   fs_get_file(cur_task->cur_dir);
-  int i;
-  for (i = 0; i < MAX_OPEN_FD; i++){
-    if (cur_task->files[i] && !bitmap_check(cur_task->close_on_exec, i))
-      fs_get_file(cur_task->files[i]);
-    else if (cur_task->files[i]){
-      new_task->files[i] = NULL;
-      bitmap_free(new_task->fd_map, i);
-    }
-  }
-
   //setup task relationship
   task_adopt(cur_task, new_task);
 
@@ -235,7 +236,7 @@ static int sys_call_fork(struct pt_regs * regs)
   mm_kfree((char*)stack);
  alloc_stack_error:
   slab_free_obj(new_task);
-  return -1;
+  return ret;
 }
 
 static int task_do_execve(const char *path, char * argv[], char * envp[])
@@ -246,21 +247,27 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
   int i;
   char * buf = (char *)mm_kmalloc(PAGE_SIZE);
   char * arg_buffer = (char *)mm_kmalloc(PAGE_SIZE);
-  if (task_copy_str_from_user(buf, path, MAX_PATH_LEN))
+  int ret = 0;
+  if (task_copy_str_from_user(buf, path, MAX_PATH_LEN)){
+    ret = -EINVAL;
     goto get_path_error;
+  }
 
-  file = fs_open(buf, O_RDONLY, 0);
+  file = fs_open(buf, O_RDONLY, 0, &ret);
   if (!file)
     goto open_error;
   bin = elf_parse(file);
-  if (!bin)
+  if (!bin){
+    ret = -EINVAL;
     goto elf_parse_error;
-
+  }
 
   if (argv){
 
-    if (task_copy_pts_from_user(arg_buffer + 12, (void *)argv, MAX_ARG_NUM))
+    if (task_copy_pts_from_user(arg_buffer + 12, (void *)argv, MAX_ARG_NUM)){
+      ret = -EINVAL;
       goto setup_args_error;
+    }
 
     char ** cur = (char **)(arg_buffer + 12);// not +16 since cur[0] is not argv[0] but path_name
     char * cur_arg = arg_buffer + PAGE_SIZE;
@@ -268,8 +275,11 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
     //1.argv[]
     for (i = 0; i< MAX_ARG_NUM && cur[i]; i++){
       //buf is useable now
-      if (task_copy_str_from_user(buf, cur[i], MAX_ARG_LEN))
+      if (task_copy_str_from_user(buf, cur[i], MAX_ARG_LEN)){
+        ret = -EINVAL;
         goto setup_args_error;
+      }
+
       len = strnlen(buf, MAX_ARG_LEN);
       cur_arg -= len + 1;
       memcpy(cur_arg, buf, len);
@@ -293,13 +303,26 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
 
   if (task_init_bin_areas(task->mm_info, task->bin)
       || task_init_stack(task->mm_info, TASK_USER_STACK_START, TASK_USER_STACK_LEN)
-      ||task_init_heap(task->mm_info, TASK_USER_HEAP_START, TASK_USER_HEAP_DEAULT_LEN))
+      ||task_init_heap(task->mm_info, TASK_USER_HEAP_START, TASK_USER_HEAP_DEAULT_LEN)){
+    ret = -EINVAL;
     goto init_area_error;
+  }
 
 
   //copy to user space stack
-  if (task_copy_to_user((void *)(TASK_USER_STACK_START - PAGE_SIZE), arg_buffer, PAGE_SIZE))
+  if (task_copy_to_user((void *)(TASK_USER_STACK_START - PAGE_SIZE), arg_buffer, PAGE_SIZE)){
+    ret = -EINVAL;
     goto init_area_error;
+  }
+  //files
+  for (i = 0; i < MAX_OPEN_FD; i++){
+    if (task->files[i] && bitmap_check(task->close_on_exec, i)){
+      bitmap_free(task->fd_map, i);
+      bitmap_free(task->close_on_exec, i);
+      fs_close(task->files[i]);
+      task->files[i] = NULL;
+    }
+  }
 
   mm_kfree(buf);
   mm_kfree(arg_buffer);
@@ -317,7 +340,7 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
  get_path_error:
   mm_kfree(arg_buffer);
   mm_kfree(buf);
-  return -1;
+  return ret;
 }
 
 static int sys_call_execve(struct pt_regs * regs)
@@ -374,7 +397,7 @@ void task_exit(int status)
   int i;
   for (i = 0; i < MAX_OPEN_FD; i++)
     if (task->files[i])
-      fs_put_file(task->files[i]);
+      fs_close(task->files[i]);
   bitmap_destory(task->fd_map);
   bitmap_destory(task->close_on_exec);
   fs_put_file(task->cur_dir);
@@ -400,6 +423,7 @@ static int sys_call_exit(struct pt_regs * regs)
 
 static void task_clean_task(struct task * task)
 {
+  bitmap_free(task_map, task->pid);
   task_delete_task(task);
   task_put_vmm_info(task->mm_info);
   mm_kfree((void *)(task->kernel_stack - KERNEL_STACK_SIZE));
@@ -431,7 +455,7 @@ static int sys_call_waitpid(struct pt_regs * regs)
                                    child_list_entry);
       }
     }else //error pid value
-      return -1;
+      return -EINVAL;
     if (ret_child)
       break;
     task_block(cur_task);
@@ -440,7 +464,7 @@ static int sys_call_waitpid(struct pt_regs * regs)
     cur_task->waitpid_blocked = 0;
 
     if (cur_task->sigpending) //interrupted by signal
-      return -1;
+      return -EINTR;
   }
 
   list_del(&(ret_child->child_list_entry));
@@ -459,7 +483,7 @@ static int sys_call_brk(struct pt_regs * regs)
   struct task * task = task_get_cur();
   if (addr < task->mm_info->heap->start_addr ||
       addr > task->mm_info->stack->start_addr - task->mm_info->stack->len)
-    return -1;
+    return -EINVAL;
   task->mm_info->heap->len = addr - task->mm_info->heap->start_addr;
   return 0;
 }
@@ -471,7 +495,7 @@ static int sys_call_sbrk(struct pt_regs * regs)
   unsigned long cur_end;
   cur_end = task->mm_info->heap->len + task->mm_info->heap->start_addr;
   if (cur_end + incre > task->mm_info->stack->start_addr)
-    return -1;
+    return -EINVAL;
   task->mm_info->heap->len += incre;
   return cur_end;
 
@@ -483,11 +507,18 @@ static int sys_call_chdir(struct pt_regs * regs)
   struct task * task = task_get_cur();
   char * tmp_buffer = (char *)mm_kmalloc(MAX_PATH_LEN + 1);
   struct fs_file * file;
+  int ret = -1;
+
   if (task_copy_str_from_user(tmp_buffer, path, MAX_PATH_LEN))
     goto copy_error;
-  file = fs_open(tmp_buffer, O_RDONLY, 0);
-  if (!file || !S_ISDIR(file->inode->mode))
+  file = fs_open(tmp_buffer, O_RDONLY, 0, &ret);
+  if (!file)
     goto open_error;
+  if (!S_ISDIR(file->inode->mode)){
+    ret = -ENOTDIR;
+    goto open_error;
+  }
+
   fs_put_file(task->cur_dir);
   task->cur_dir = file;
   mm_kfree(tmp_buffer);
@@ -496,7 +527,7 @@ static int sys_call_chdir(struct pt_regs * regs)
  open_error:
  copy_error:
   mm_kfree(tmp_buffer);
-  return -1;
+  return ret;
 }
 
 
@@ -551,7 +582,8 @@ void task_init()
 
 void task_setup_init(const char* path)
 {
-  struct fs_file * file = fs_open(path, O_RDONLY, 0);
+  int ret = -1;
+  struct fs_file * file = fs_open(path, O_RDONLY, 0, &ret);
   if (!file){
     printk("can not open %s\n", path);
     return ;
@@ -587,7 +619,10 @@ void task_setup_init(const char* path)
     goto init_mm_error;
 
   //setup cur_dir, stdin, stdout, stderr
-  init->cur_dir = fs_get_root();
+  init->cur_dir = fs_open("/", O_RDWR, 0, &ret);
+  if (ret)
+    goto open_root_error;
+
   bitmap_set(init->fd_map, 0);
   bitmap_set(init->fd_map, 1);
   bitmap_set(init->fd_map, 2);
@@ -605,7 +640,7 @@ void task_setup_init(const char* path)
   //this function never return
   task_arch_launch(init->bin->entry_addr, init->mm_info->stack->start_addr + init->mm_info->stack->len - 12);
   /******** never back here ***********************/
-
+ open_root_error:
  init_mm_error:
   task_put_bin(init->bin);
 
@@ -711,4 +746,13 @@ void task_segment_fault()
 void task_gener_wake_up(struct task* task,void* private)
 {
   task_ready_to_run(task);
+}
+
+void task_free_wait_queue(struct task_wait_queue* queue)
+{
+  slab_free_obj(queue);
+}
+void task_free_wait_entry(struct task_wait_entry* entry)
+{
+  slab_free_obj(entry);
 }

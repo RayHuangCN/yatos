@@ -80,6 +80,15 @@ typedef unsigned long mode_t;
 
 #define O_CLOEXEC __O_CLOEXEC
 
+
+#define F_DUPFD		0	/* dup */
+#define F_GETFD		1	/* get close_on_exec */
+#define F_SETFD		2	/* set/clear close_on_exec */
+#define F_GETFL		3	/* get file->f_flags */
+#define F_SETFL		4	/* set file->f_flags */
+#define FD_CLOEXEC	1	/* actually anything with low bit set goes */
+
+
 #define	__S_IFMT	0170000	/* These bits determine file type.  */
 #define	__S_IFDIR	0040000	/* Directory.  */
 #define	__S_IFCHR	0020000	/* Character device.  */
@@ -100,7 +109,7 @@ typedef unsigned long mode_t;
 
 
 
-#define S_IFMT		__S_IFMT
+#define S_IFMT	__S_IFMT
 #define S_IFDIR	__S_IFDIR
 #define S_IFCHR	__S_IFCHR
 #define S_IFBLK	__S_IFBLK
@@ -129,6 +138,9 @@ typedef unsigned long mode_t;
 
 #define FS_DATA_BUFFER_SIZE PAGE_SIZE
 
+
+
+
 struct fs_data_buffer
 {
 	unsigned long flag;
@@ -143,6 +155,14 @@ struct kdirent
 	int inode_num;
 	int name_len;
 	char name[256];
+};
+
+struct kstat
+{
+	int inode_num;
+	mode_t mode;
+	int links_count;
+	off_t size;
 };
 
 
@@ -164,6 +184,7 @@ struct fs_inode_oper
 	void (*release)(struct fs_inode *inode);
 	int (*ioctl)(struct fs_file * file, int requst, unsigned long arg);
 	int (*readdir)(struct fs_file * file, struct kdirent * ret);
+	int (*ftruncate)(struct fs_file * file, off_t length);
 };
 
 struct fs_inode
@@ -171,11 +192,14 @@ struct fs_inode
 	uint32 inode_num;
 	void *inode_data;
 	mode_t mode;
+	uint32 size;
 	struct list_head data_buffers;
 	struct fs_data_buffer * recent_data;
 	unsigned long count;
     struct list_head list_entry;
 	struct fs_inode_oper *action;
+	struct fs_inode * parent;
+	int links_count;
 };
 
 struct fs_file
@@ -188,7 +212,7 @@ struct fs_file
 
 
 void fs_init();
-struct fs_file * fs_open(const char * path, int flag, mode_t mode);
+struct fs_file * fs_open(const char * path, int flag, mode_t mode, int *ret);
 struct fs_file * fs_open_stdin();
 struct fs_file * fs_open_stdout();
 struct fs_file * fs_open_stderr();
@@ -196,7 +220,7 @@ struct fs_file * fs_open_stderr();
 int fs_read(struct fs_file * file, char * buffer, unsigned long count);
 int fs_write(struct fs_file * file, char * buffer, unsigned long count);
 void fs_close(struct fs_file * file);
-void fs_sync(struct fs_file *file);
+void fs_sync(struct fs_inode *file);
 off_t fs_seek(struct fs_file * file, off_t offset, int whence);
 void fs_get_file(struct fs_file * file);
 void fs_put_file(struct fs_file * file);

@@ -1,4 +1,4 @@
-obj-y = unistd.o fcntl.o sys_call.o stdlib.o ctype.o string.o vsprintf.o printf.o malloc.o getopt.o dirent.o
+obj-y = unistd.o fcntl.o sys_call.o stdlib.o ctype.o string.o vsprintf.o printf.o malloc.o getopt.o dirent.o errno.o
 lib-dir=lib
 lib-target = $(lib-dir)/libmyglib.o
 target-dir=/opt/yatos/yatos-glib/

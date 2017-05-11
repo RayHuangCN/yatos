@@ -13,6 +13,7 @@
 #include <yatos/fs.h>
 #include <yatos/task.h>
 #include <arch/asm.h>
+#include <yatos/ipc.h>
 void kernel_start()
 {
   tty_reset_cursor();
@@ -24,7 +25,7 @@ void kernel_start()
   task_init();
   fs_init();
   tty_init();
-
+  ipc_init();
   task_setup_init("/sbin/init");
   /* never back here */
   go_die("the end of the world\n");
