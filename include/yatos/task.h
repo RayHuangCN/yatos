@@ -14,6 +14,7 @@
 #include <yatos/fs.h>
 #include <yatos/bitmap.h>
 #include <yatos/task_vmm.h>
+#include <arch/regs.h>
 
 #define KERNEL_STACK_SIZE (PAGE_SIZE<<1)
 
@@ -67,7 +68,7 @@ struct task_wait_queue
   struct list_head entry_list;
 };
 
-
+struct sig_info;
 struct task
 {
   unsigned long cur_stack;//must be the first one
@@ -102,9 +103,7 @@ struct task
   struct fs_file * cur_dir;
 
   //signal
-  int sigpending; //any pending signal?
-  struct bitmap * sig_map;
-
+  struct sig_info *sig_info;
 
   //tty
   int tty_num;
@@ -133,9 +132,10 @@ void task_notify_one(struct task_wait_queue * queue);
 void task_notify_all(struct task_wait_queue * queue);
 void task_leave_all_wq(struct task * task);
 void task_leave_from_wq(struct task_wait_entry * wait_entry);
-void task_segment_fault();
+void task_segment_fault(struct task * task);
 void task_exit(int status);
-
 void task_gener_wake_up(struct task * task, void * private);
+
+struct pt_regs * task_get_pt_regs(struct task * task);
 
 #endif

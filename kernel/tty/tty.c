@@ -13,7 +13,7 @@
 #include <yatos/tools.h>
 #include <yatos/irq.h>
 #include <yatos/errno.h>
-
+#include <yatos/signal.h>
 static uint32 keymap[NR_SCAN_CODES * MAP_COLS] = {
 
 /* scan-code			!Shift		Shift		E0 XX	*/
@@ -484,7 +484,7 @@ int tty_read_input(char * buffer, unsigned long len)
     task_block(task);
     task_schedule();
 
-    if (task->sigpending)
+    if (sig_is_pending(task))
       break;
 
     int input = (int)entry.private;

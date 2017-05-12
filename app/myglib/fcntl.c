@@ -27,16 +27,7 @@ int fcntl(int __fd,int __cmd,...)
   va_start(arg, __cmd);
   int flag = va_arg(arg, int);
   va_end(arg);
-  int ret;
-  ret = sys_call_4(SYS_CALL_FCNTL,
-                   (unsigned long)__fd,
-                   (unsigned long)__cmd,
-                   (unsigned long)flag);
-  if (ret < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_4(SYS_CALL_FCNTL, __fd, __cmd, flag);
 }
 
 int dup(int __fd)
@@ -44,20 +35,16 @@ int dup(int __fd)
   return fcntl(__fd, F_DUPFD);
 }
 
+
+
 int dup3(int __fd,int __fd2,int __flags)
 {
-  int ret;
-  ret = sys_call_4(SYS_CALL_DUP3,
-                   (unsigned long)__fd,
-                   (unsigned long)__fd2,
-                   (unsigned long)__flags);
-  if (ret < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_4(SYS_CALL_DUP3, __fd, __fd2, __flags);
 }
-
+int dup2(int __fd,int __fd2)
+{
+  return dup3(__fd, __fd2, 0);
+}
 
 int open(const char* __file,int __oflag,...)
 {
@@ -65,16 +52,7 @@ int open(const char* __file,int __oflag,...)
   va_start(arg, __oflag);
   mode_t mode = va_arg(arg, mode_t);
   va_end(arg);
-  int ret;
-  ret = sys_call_4(SYS_CALL_OPEN,
-                    (unsigned long)__file,
-                    (unsigned long)__oflag,
-                    (unsigned long)mode);
-  if (ret  < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_4(SYS_CALL_OPEN, __file, __oflag, mode);
 }
 
 int ioctl(int __fd,unsigned long int __request, ...)
@@ -84,76 +62,32 @@ int ioctl(int __fd,unsigned long int __request, ...)
   unsigned long req_arg = va_arg(arg, unsigned long);
   va_end(arg);
   int ret;
-  ret = sys_call_4(SYS_CALL_IOCTL,
-                    (unsigned long)__fd,
-                    __request,
-                    req_arg);
-  if (ret  < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_4(SYS_CALL_IOCTL, __fd, __request, req_arg);
 }
 
 
 ssize_t read(int __fd,void* __buf,size_t __nbytes)
 {
-  int ret;
-  ret = sys_call_4(SYS_CALL_READ, __fd,
-                    (unsigned long)__buf,
-                    (unsigned long)__nbytes);
-  if (ret  < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_4(SYS_CALL_READ, __fd, __buf, __nbytes);
 }
 
 ssize_t write(int __fd,const void* __buf,size_t __n)
 {
-  int ret;
-  ret = sys_call_4(SYS_CALL_WRITE,__fd,
-                    (unsigned long)__buf,
-                    (unsigned long)__n);
-  if (ret  < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_4(SYS_CALL_WRITE, __fd, __buf, __n);
 }
 int close(int __fd)
 {
-  int ret;
-  ret =  sys_call_2(SYS_CALL_CLOSE, __fd);
-  if (ret  < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_2(SYS_CALL_CLOSE, __fd);
 }
 
 off_t lseek(int __fd,__off_t __offset,int __whence)
 {
-  int ret;
-  ret = sys_call_4(SYS_CALL_SEEK, __fd,
-                    (unsigned long)__offset,
-                    (unsigned long)__whence);
-  if (ret  < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_4(SYS_CALL_SEEK, __fd, __offset, __whence);
 }
 
 int fsync(int __fd)
 {
-  int ret;
-  ret = sys_call_2(SYS_CALL_SYNC, __fd);
-  if (ret  < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_2(SYS_CALL_SYNC, __fd);
 }
 
 int truncate(const char* __file,__off_t __length)
@@ -169,15 +103,7 @@ int truncate(const char* __file,__off_t __length)
 
 int ftruncate(int __fd,__off_t __length)
 {
-  int ret;
-  ret = sys_call_3(SYS_CALL_FTRUNCATE,
-                    (unsigned long)__fd,
-                    (unsigned long)__length);
-  if (ret  < 0){
-    errno = -ret;
-    return -1;
-  }
-  return ret;
+  return sys_call_3(SYS_CALL_FTRUNCATE, __fd, __length);
 }
 int stat(const char *pathname, struct stat *statbuf)
 {
@@ -194,17 +120,13 @@ int fstat(int fd, struct stat * statbuf)
 {
   int ret;
   struct kstat kstat;
-  ret = sys_call_3(SYS_CALL_FSTAT,
-                   (unsigned long)fd,
-                   (unsigned long)&kstat);
-  if (ret < 0){
-    errno = -ret;
-    return -1;
+  ret = sys_call_3(SYS_CALL_FSTAT, fd, &kstat);
+  if (!ret){
+    statbuf->st_ino = kstat.inode_num;
+    statbuf->st_size = kstat.size;
+    statbuf->st_nlink = kstat.links_count;
+    statbuf->st_mode = kstat.mode;
   }
-  statbuf->st_ino = kstat.inode_num;
-  statbuf->st_size = kstat.size;
-  statbuf->st_nlink = kstat.links_count;
-  statbuf->st_mode = kstat.mode;
   return ret;
 }
 

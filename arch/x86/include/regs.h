@@ -17,6 +17,9 @@
 #define sys_call_arg1(regs) (regs->ebx)
 #define sys_call_arg2(regs) (regs->ecx)
 #define sys_call_arg3(regs) (regs->edx)
+#define pt_regs_user_stack(regs) (regs->esp)
+#define pt_regs_ret_addr(regs) (regs->eip)
+typedef uint32 regs_type;
 
 struct pt_regs
 {

@@ -1,12 +1,12 @@
     [bits 32]
 SECTION .text
-    global sys_call_1
-    global sys_call_2
-    global sys_call_3
-    global sys_call_4
-    global sys_call_5
+    global __sys_call_1
+    global __sys_call_2
+    global __sys_call_3
+    global __sys_call_4
+    global __sys_call_5
 
-sys_call_1:
+__sys_call_1:
     push ebp
     mov ebp, esp
     mov eax, [ebp + 8]
@@ -14,7 +14,7 @@ sys_call_1:
     pop ebp
     ret
 
-sys_call_2:
+__sys_call_2:
     push ebp
     mov ebp, esp
     push ebx
@@ -27,7 +27,7 @@ sys_call_2:
     pop ebp
     ret
 
-sys_call_3:
+__sys_call_3:
     push ebp
     mov ebp, esp
     push ebx
@@ -43,7 +43,7 @@ sys_call_3:
     pop ebp
     ret
 
-sys_call_4:
+__sys_call_4:
     push ebp
     mov ebp, esp
     push ebx

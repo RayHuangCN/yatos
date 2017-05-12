@@ -121,7 +121,8 @@ void * slab_alloc_obj(struct kcache* cache)
 
 void slab_free_obj(void* obj)
 {
-
+  if (!obj)
+    return ;
   unsigned long addr = (unsigned long)obj;
   struct list_head * obj_list = (struct list_head*)addr;
   struct page *page = vaddr_to_page(addr >> PAGE_SHIFT << PAGE_SHIFT);

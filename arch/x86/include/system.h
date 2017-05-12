@@ -29,8 +29,8 @@ typedef unsigned int size_t;
 #define PAGE_SIZE  (4 * 1024)
 #define PAGE_SHIFT 12
 
-#define PAGE_ALIGN(addr) (addr & ~0xfff)
-#define PAGE_OFFSET(addr) (addr & 0xfff)
+#define PAGE_ALIGN(addr)  ((unsigned long)(addr) & ~0xfff)
+#define PAGE_OFFSET(addr) ((unsigned long)(addr) & 0xfff)
 
 
 #define KERNEL_VMM_START 0xc0000000

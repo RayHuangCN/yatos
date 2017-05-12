@@ -263,7 +263,7 @@ global arch_irq_recover
 global irq_common_ret
 extern irq_vectors
 extern task_check_schedule
-
+extern sig_check_signal
 arch_irq_save:
     pushfd
     pop eax
@@ -346,6 +346,7 @@ irq_common_ret:
     mov eax, [esp + 48]
 	cmp eax, 0x10
     je skip_check
+    call sig_check_signal
 	call task_check_schedule
 skip_check:
     RESTOR_REGS

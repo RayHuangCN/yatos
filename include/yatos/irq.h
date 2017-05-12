@@ -11,6 +11,7 @@
 /********* header files *************************/
 #include <arch/irq.h>
 #include <yatos/list.h>
+#include <arch/regs.h>
 /********* g_define *****************************/
 struct irq_action
 {

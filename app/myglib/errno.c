@@ -48,11 +48,11 @@ const char *const sys_errlist[] =
     [34] = "Numerical result out of range",
 };
 
-int err_number;
+int err_num = 0;
 
 int * __errno_location()
 {
-    return &err_number;
+    return &err_num;
 }
 
 void perror(const char *s)

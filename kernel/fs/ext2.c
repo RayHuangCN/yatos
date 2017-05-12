@@ -695,7 +695,7 @@ int ext2_mkdir(const char * path, uint16 mode)
     goto open_parent_error;
   }
 
-  if (!ext2_find_file(name, parent->inode)){
+  if (ext2_find_file(name, parent->inode) != -1){
     ret = -EEXIST;
     goto file_exsit;
   }

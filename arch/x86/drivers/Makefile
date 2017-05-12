@@ -8,3 +8,4 @@ obj-y += task_asm.o
 obj-y += task.o
 obj-y += mmu.o
 obj-y += mmu_asm.o
+obj-y += signal.o

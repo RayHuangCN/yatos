@@ -5,8 +5,9 @@
  *   Desc  : ipc
  ************************************************/
 #include <yatos/pipe.h>
-
+#include <yatos/signal.h>
 void ipc_init()
 {
   pipe_init();
+  sig_init();
 }

@@ -43,6 +43,9 @@
 
 //ipc
 #define SYS_CALL_PIPE 40
+#define SYS_CALL_SIGNAL 41
+#define SYS_CALL_SIGRET 42
+#define SYS_CALL_SIGPROCMASK 43
 
 #define SYS_CALL_MAX_NNUM 256
 

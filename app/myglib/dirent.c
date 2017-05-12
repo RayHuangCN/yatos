@@ -42,9 +42,8 @@ struct dirent * readdir(DIR* __dirp)
   struct kdir * kdir = (struct kdir*)__dirp;
   struct dirent * dirent = (struct dirent*)kdir->dirent;
   struct kdirent kdirent;
-  if (!sys_call_3(SYS_CALL_READDIR,
-                 (unsigned long)kdir->fd,
-                 (unsigned long)&kdirent)){
+  int ret = sys_call_3(SYS_CALL_READDIR, kdir->fd, &kdirent);
+  if (!ret){
     dirent->d_ino = kdirent.inode_num;
     strcpy(dirent->d_name, kdirent.name);
     return dirent;

@@ -402,8 +402,10 @@ struct fs_file * fs_open(const char * path, int flag, mode_t mode, int *ret)
   }
 
   //error of file exist
-  if ((flag & O_CREAT) && (flag & O_EXCL) && !new_file)
-    return -EEXIST;
+  if ((flag & O_CREAT) && (flag & O_EXCL) && !new_file){
+    *ret = -EEXIST;
+    return NULL;
+  }
   //truncate ?
   if (flag & O_TRUNC)
     ext2_truncate(cur_inode, 0);

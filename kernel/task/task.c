@@ -15,7 +15,7 @@
 #include <yatos/schedule.h>
 #include <yatos/fs.h>
 #include <yatos/errno.h>
-
+#include <yatos/signal.h>
 
 char init_stack_space[KERNEL_STACK_SIZE];
 static struct task *init;
@@ -216,6 +216,12 @@ static int sys_call_fork(struct pt_regs * regs)
     ret = -ENOMEM;
     goto vmm_info_clone_error;
   }
+  //signal_should be copy
+  if (sig_task_fork(new_task, cur_task)){
+    ret = -ENOMEM;
+    goto sig_copy_error;
+  }
+
   //update all count of inference
   task_get_bin(cur_task->bin);
   fs_get_file(cur_task->cur_dir);
@@ -230,6 +236,8 @@ static int sys_call_fork(struct pt_regs * regs)
 
   return new_task->pid;
   //error
+ sig_copy_error:
+  task_put_vmm_info(new_task->mm_info);
  vmm_info_clone_error:
   bitmap_destory(new_task->fd_map);
  bitmap_clone_error:
@@ -294,7 +302,6 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
     ((uint32 *)arg_buffer)[2] = TASK_USER_STACK_START - PAGE_SIZE + 12;
   }
   //now we can free old vmm_info
-
   task_put_bin(task->bin);
 
   //rebuild mm_info
@@ -323,7 +330,8 @@ static int task_do_execve(const char *path, char * argv[], char * envp[])
       task->files[i] = NULL;
     }
   }
-
+  //signal
+  sig_task_exec(task);
   mm_kfree(buf);
   mm_kfree(arg_buffer);
   task_arch_launch(task->bin->entry_addr, TASK_USER_STACK_START - PAGE_SIZE);
@@ -384,7 +392,7 @@ void task_exit(int status)
   struct task * parent = task->parent;
   if (task->pid == 1)
     go_die("init task exit!\n");
-  task->exit_status = status << 8;
+  task->exit_status = status;
   task_tobe_zombie(task);
   task_leave_all_wq(task);
   task_adopt_orphans(task);
@@ -401,6 +409,8 @@ void task_exit(int status)
   bitmap_destory(task->fd_map);
   bitmap_destory(task->close_on_exec);
   fs_put_file(task->cur_dir);
+  //delete signal
+  sig_task_exit(task);
   //now we should link to parent zombie_chils list;
   list_del(&(task->child_list_entry));
   list_add(&(task->child_list_entry), &(parent->zombie_childs));
@@ -416,7 +426,7 @@ void task_exit(int status)
 static int sys_call_exit(struct pt_regs * regs)
 {
   int status = (int)sys_call_arg1(regs);
-  task_exit(status);
+  task_exit(status << 8);//POSIX defined...
   return 0;
 }
 
@@ -463,14 +473,13 @@ static int sys_call_waitpid(struct pt_regs * regs)
     task_schedule();
     cur_task->waitpid_blocked = 0;
 
-    if (cur_task->sigpending) //interrupted by signal
+    if (sig_is_pending(cur_task)) //interrupted by signal
       return -EINTR;
   }
 
   list_del(&(ret_child->child_list_entry));
   if (task_copy_to_user((void *)status, (void *)(&(ret_child->exit_status)), sizeof(int))){
-    task_segment_fault();
-    return -1;
+    return -EFAULT;
   }
   int ret_pid = ret_child->pid;
   task_clean_task(ret_child);
@@ -623,6 +632,9 @@ void task_setup_init(const char* path)
   if (ret)
     goto open_root_error;
 
+  if (sig_task_init(init))
+    goto init_signal_error;
+
   bitmap_set(init->fd_map, 0);
   bitmap_set(init->fd_map, 1);
   bitmap_set(init->fd_map, 2);
@@ -640,22 +652,20 @@ void task_setup_init(const char* path)
   //this function never return
   task_arch_launch(init->bin->entry_addr, init->mm_info->stack->start_addr + init->mm_info->stack->len - 12);
   /******** never back here ***********************/
+
+ init_signal_error:
+  fs_close(init->cur_dir);
  open_root_error:
  init_mm_error:
   task_put_bin(init->bin);
-
  parse_file_error:
   task_put_vmm_info(init->mm_info);
-
  mm_table_alloc_error:
   task_put_vmm_info(init->mm_info);
-
  create_mm_info_error:
   bitmap_destory(init->fd_map);
-
  create_fd_map_error:
   slab_free_obj(init);
-
  task_alloc_error:
   fs_close(file);
 }
@@ -737,10 +747,10 @@ void task_notify_all(struct task_wait_queue * queue)
   }
 }
 
-void task_segment_fault()
+void task_segment_fault(struct task * task)
 {
   printk("segment fault!\n");
-  task_exit(-1);
+  sig_send(task,SIGSEGV);
 }
 
 void task_gener_wake_up(struct task* task,void* private)
@@ -755,4 +765,9 @@ void task_free_wait_queue(struct task_wait_queue* queue)
 void task_free_wait_entry(struct task_wait_entry* entry)
 {
   slab_free_obj(entry);
+}
+
+struct pt_regs * task_get_pt_regs(struct task* task)
+{
+  return (struct pt_regs*)(task->kernel_stack - sizeof(struct pt_regs));
 }

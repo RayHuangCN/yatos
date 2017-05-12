@@ -29,5 +29,4 @@ void task_arch_init();
 void task_arch_befor_launch(struct task * task);
 void task_arch_init_run_context(struct task * task, unsigned long ret_val);
 void task_arch_switch_to(struct task * pre, struct task *next);
-
 #endif
