@@ -151,4 +151,14 @@ struct task * task_get_cur()
   return task_current;
 }
 
-
+struct task * task_find_by_pid(int pid)
+{
+  struct list_head * cur;
+  struct task * task;
+  list_for_each(cur, &task_list){
+    task = container_of(cur, struct task, task_list_entry);
+    if (task->pid == pid)
+      return task;
+  }
+  return NULL;
+}

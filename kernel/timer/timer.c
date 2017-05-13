@@ -13,6 +13,8 @@
 #include <arch/timer.h>
 #include <yatos/sys_call.h>
 #include <yatos/schedule.h>
+#include <yatos/errno.h>
+#include <yatos/signal.h>
 
 static struct list_head action_list;
 static struct irq_action timer_irq_ac;
@@ -109,9 +111,8 @@ int timer_usleep(unsigned long usec)
   timer_register(&action);
   task_schedule();
   timer_unregister(&action);
-
-  if (timer_click < action.target_click)
-    return -1;
+  if (sig_is_pending(task))
+    return -EINTR;
   return 0;
 }
 

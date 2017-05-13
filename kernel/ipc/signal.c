@@ -70,7 +70,7 @@ static int sys_call_sigret(struct pt_regs * regs)
     task_exit(SIGKILL);
   }
   task_get_cur()->sig_info->mask = oldmask;
-  return 0;
+  return regs->eax; //!!!don't return other value
 }
 
 //int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
@@ -114,6 +114,18 @@ static int sys_call_sigprocmask(struct pt_regs * regs)
   return -EINVAL;
 }
 
+static int sys_call_kill(struct pt_regs * regs)
+{
+  int pid = (int)sys_call_arg1(regs);
+  int sig = (int)sys_call_arg2(regs);
+  struct task * task = task_find_by_pid(pid);
+  if (!task)
+    return -EINVAL;
+  if (sig <= 0 || sig > NSIG)
+    return -EINVAL;
+  sig_send(task, sig);
+  return 0;
+}
 
 void sig_init()
 {
@@ -124,6 +136,7 @@ void sig_init()
   sys_call_regist(SYS_CALL_SIGNAL, sys_call_signal);
   sys_call_regist(SYS_CALL_SIGRET, sys_call_sigret);
   sys_call_regist(SYS_CALL_SIGPROCMASK, sys_call_sigprocmask);
+  sys_call_regist(SYS_CALL_KILL, sys_call_kill);
 }
 
 void sig_send(struct task * task, int signum)
@@ -205,7 +218,7 @@ static void sig_do_signal(int num)
 
 void sig_check_signal()
 {
-  /*
+
   struct sig_info * sig_info = task_get_cur()->sig_info;
   struct sigaction * action = NULL;
   int i;
@@ -213,6 +226,7 @@ void sig_check_signal()
   if (sigset_check(sig_info->pending, SIGKILL))
     task_exit(SIGKILL);
   if (sigset_check(sig_info->pending, SIGSTOP)){
+    sigset_del(sig_info->pending, SIGSTOP);
     task_block(task_get_cur());
     task_schedule();
     return ;
@@ -236,7 +250,7 @@ void sig_check_signal()
         break;
       }
     }
-    }*/
+  }
 }
 
 int sig_task_init(struct task * task)
@@ -272,5 +286,5 @@ int sig_task_exit(struct task* task)
 
 int sig_is_pending(struct task * task)
 {
-  return task->sig_info->pending;
+  return task->sig_info->pending & ~task->sig_info->mask;
 }

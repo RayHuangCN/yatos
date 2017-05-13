@@ -135,7 +135,6 @@ void task_leave_from_wq(struct task_wait_entry * wait_entry);
 void task_segment_fault(struct task * task);
 void task_exit(int status);
 void task_gener_wake_up(struct task * task, void * private);
-
 struct pt_regs * task_get_pt_regs(struct task * task);
 
 #endif

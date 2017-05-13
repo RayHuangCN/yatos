@@ -134,9 +134,7 @@ struct tty
   int cur_row;
   int cur_col;
   char cur_color;
-  struct task_wait_queue * wait_queue;
-  struct task * fg_task;
-  struct task * creater;
+  struct 
 };
 
 
@@ -147,8 +145,6 @@ void tty_get_cursor(int *x, int *y);
 void tty_clear();
 void tty_init();
 int tty_read_input(char *buffer, unsigned long len);
-int tty_open_new(struct task * task);
+int tty_open_new();
 void tty_set_color(char color);
-int tty_set_fg_task(int tty_num, struct task * onwer_task, struct task * target_task);
-
 #endif

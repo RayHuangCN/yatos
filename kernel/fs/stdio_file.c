@@ -30,12 +30,12 @@ static int std_read(struct fs_file * file, char *buffer, unsigned long count)
 
 static int std_ioctl(struct fs_file * file, int requst,  unsigned long arg)
 {
+  struct task * t_task;
   switch (requst){
   case 1: // get tty max number
     return MAX_TTY_NUM;
-  case 2: // open tty, if there is no useable tty, return -1
-    (task_get_cur()->tty_num = tty_open_new());
-    if (task_get_cur()->tty_num < 0)
+  case 2:
+    if (tty_open_new(task_get_cur()))
       return -ENOTTY;
     return 0;
   case 3:
@@ -44,6 +44,11 @@ static int std_ioctl(struct fs_file * file, int requst,  unsigned long arg)
   case 4: //set color
     tty_set_color(arg);
     return 0;
+  case 5: //change fg_task
+    t_task = task_find_by_pid(arg);
+    if (!t_task)
+      return -EINVAL;
+    return tty_set_fg_task(task_get_cur()->tty_num, task_get_cur(), t_task);
   }
   return -EINVAL;
 }

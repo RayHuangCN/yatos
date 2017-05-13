@@ -524,7 +524,7 @@ static int sys_call_read(struct pt_regs * regs)
   if (read_n > 0){
     if (task_copy_to_user(buffer, tmp_buffer, read_n)){
       mm_kfree(tmp_buffer);
-      read_n = -EINVAL;
+      read_n = -EFAULT;
     }
   }
   mm_kfree(tmp_buffer);

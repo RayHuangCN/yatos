@@ -6,6 +6,7 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #define BUFFER_LEN 4096
 #define CMD_NAME_LEN 128
@@ -24,7 +25,9 @@ char cmd_name[CMD_NAME_LEN];
 char * args[ARG_MAX_NUM];
 char cur_dir[MAX_CUR_DIR];
 char ** environ;
-
+pid_t childs[ARG_MAX_NUM];
+int child_total;
+pid_t mypid;
 static void parse_real_path(const char * path, char *ans)
 {
   if (!path || !*path)
@@ -177,14 +180,14 @@ int setup_args(char * arg_str)
   return 0;
 }
 
-int run_task(char ** argv)
+pid_t run_task(char ** argv)
 {
   if (!argv || !argv[0] || !argv[0][0])
     return 1;
 
   pid_t child = fork();
   if (child < 0)
-    return 1;
+    return -1;
   if (!child){
     if ((argv[0][0] == '.' && argv[0][1] =='/')
         ||
@@ -202,7 +205,7 @@ int run_task(char ** argv)
     perror(buffer);
     exit(1);
   }
-  return 0;
+  return child;
 }
 
 int str_is_reio(const char * str)
@@ -226,12 +229,31 @@ void fd_set_cloexec(int fd, int cloexec)
   fcntl(fd,F_SETFD, flag);
 }
 
+
+static void sig_handler(int sig)
+{
+  //send SIGINT to chils;
+  int i;
+  for (i = 0; i < child_total; i++)
+    kill(childs[i], sig);
+
+}
+
 int main(int argc, char *argv[])
 {
-  int n;
+  int read_n;
   int str_len;
+  mypid = getpid();
+
+  if (signal(SIGINT, sig_handler) == SIG_ERR || signal(SIGQUIT, sig_handler)){
+    perror("signal error!");
+    return 1;
+  }
   sprintf(cur_dir, "%s", "/");
   while (1){
+    child_total = 0;
+    ioctl(0, 5, mypid); //set shell become fg_task of tty
+
     cmd_buffer[0] = '\0';
     //set color and print something
     ioctl(0, 4, SHELL_LOG_COLOR);
@@ -244,19 +266,22 @@ int main(int argc, char *argv[])
     ioctl(0, 4, SHELL_NORMAL_COLOR);
 
     //read commands
-    n = 0;
     while (1){
-      n += read(STDIN_FILENO, cmd_buffer + strlen(cmd_buffer), BUFFER_LEN);
-      if (n < 0){
-        perror("read cmd failed!");
-        return 1;
-      }
-      cmd_buffer[n] = '\0';
+      read_n = read(STDIN_FILENO, cmd_buffer + strlen(cmd_buffer), BUFFER_LEN);
+      if (read_n < 0)
+        break;
+
+      cmd_buffer[read_n] = '\0';
       if (setup_args(cmd_buffer))
         write(STDOUT_FILENO, ">", 1);
       else
         break;
     }
+    if (read_n < 0){
+      write(STDOUT_FILENO, "\n", 1);
+      continue;
+    }
+
     if (args[0] == NULL)
       continue;
 
@@ -268,9 +293,7 @@ int main(int argc, char *argv[])
       do_cmd_clear();
       continue;
     }
-
     // now we set up all child task
-    int child_total = 0;
     char ** cur_arg = args;
     char ** cur_run_cmd = args;
     int fd[2] ; //for pipe
@@ -280,7 +303,6 @@ int main(int argc, char *argv[])
     //save stdio
     int save_stdin = dup(STDIN_FILENO);
     int save_stdout = dup(STDOUT_FILENO);
-
     while (*cur_arg){
       if (str_is_reio(*cur_arg)){
         dup3(save_stdout, STDOUT_FILENO, 0);
@@ -357,22 +379,28 @@ int main(int argc, char *argv[])
       }else
         ret = run_task(cur_run_cmd);
 
-      if (ret){
+      if (ret < 0){
         dup3(save_stdout, STDOUT_FILENO, 0);
         sprintf(errbuf, "can not execve %s!", *cur_run_cmd);
         perror(errbuf);
         goto wait_for_finish;
       }
-      child_total++;
+      childs[child_total++] = ret;
+
+      //set first child to become fg_task
+      if (child_total == 1)
+        ioctl(0, 5, childs[0]);
+
     }
-    //restore stdio
+    //restore stdio and become fg_task
     dup3(save_stdin, STDIN_FILENO, 0);
     dup3(save_stdout, STDOUT_FILENO, 0);
 
   wait_for_finish:
     //wait for all childs
     for (i = 0; i < child_total; i++)
-      waitpid(-1, &ret, 0);
+      if (waitpid(-1, &ret, 0) < 0)
+        i--;
   }
   return 0;
 }

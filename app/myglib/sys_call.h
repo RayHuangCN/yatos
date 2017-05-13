@@ -42,7 +42,7 @@
 #define SYS_CALL_SIGNAL 41
 #define SYS_CALL_SIGRET 42
 #define SYS_CALL_SIGPROCMASK 43
-
+#define SYS_CALL_KILL 44
 /* asm functions */
 int __sys_call_1(unsigned long call_num);
 int __sys_call_2(unsigned long call_num, unsigned long arg1);

@@ -46,7 +46,7 @@
 #define SYS_CALL_SIGNAL 41
 #define SYS_CALL_SIGRET 42
 #define SYS_CALL_SIGPROCMASK 43
-
+#define SYS_CALL_KILL 44
 #define SYS_CALL_MAX_NNUM 256
 
 typedef int (*sys_call_fun)(struct pt_regs * regs);

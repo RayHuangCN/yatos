@@ -28,8 +28,9 @@ void task_block(struct task * task);
 
 
 struct task*  task_get_cur();
-
 void task_check_schedule();
+struct task * task_find_by_pid(int pid);
+
 
 
 

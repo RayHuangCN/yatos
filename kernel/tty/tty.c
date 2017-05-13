@@ -375,18 +375,32 @@ void kb_irq_handler(void *private, struct pt_regs * regs)
 
     //take with  normal char
     if (make){
+
+      //signal
+      if ((ctrl_l || ctrl_r) &&
+          (key[col] == 'c' || key[col] == 'C')){
+        sig_send(cur_tty->creater, SIGINT);
+        return ;
+      }
+      if ((ctrl_l || ctrl_r) &&
+          key[col] == '\\'){
+        sig_send(cur_tty->creater, SIGQUIT);
+        return ;
+      }
+
+      //normal key
       wait_queue = cur_tty->wait_queue;
       if (list_empty(&(wait_queue->entry_list)))
         return ;
       wait_entry = container_of(wait_queue->entry_list.next,
                               struct task_wait_entry,
                               wait_list_entry);
-      if ((key[col] == 'd' || key[col] == 'D')
-          && (ctrl_l || ctrl_r))
-        wait_entry->private = (void *)(-1);
+      if ((ctrl_l || ctrl_r) &&
+          (key[col] == 'd' || key[col] == 'D')){
+        wait_entry->private = (void*)-1; //EOF
+      }
       else
-        wait_entry->private = (void *)key[col];
-
+        wait_entry->private = key[col];
       task_notify_one(wait_queue);
     }
   }
@@ -467,10 +481,16 @@ int tty_read_input(char * buffer, unsigned long len)
 
   struct tty * tty = ttys + tty_num;
   struct task_wait_queue * wait_queue = tty->wait_queue;
-
   if (!wait_queue)
     return -ENOTTY;
 
+  //only fg_task can read from tty
+  if (task != tty->fg_task){
+    task_block(task);
+    task_schedule();
+    if (sig_is_pending(task))
+      return -EINTR;
+  }
   if (!list_empty(&(wait_queue->entry_list)))
     return -EBUSY;
 
@@ -484,8 +504,10 @@ int tty_read_input(char * buffer, unsigned long len)
     task_block(task);
     task_schedule();
 
-    if (sig_is_pending(task))
-      break;
+    if (sig_is_pending(task)){
+      task_leave_from_wq(&entry);
+      return -EINTR;
+    }
 
     int input = (int)entry.private;
     if (input == -1)
@@ -580,7 +602,7 @@ void tty_init()
   irq_regist(0x21, &kb_irq_action);
 }
 
-int tty_open_new()
+int tty_open_new(struct task * task)
 {
   int i;
   for (i = 0; i < MAX_TTY_NUM; i++){
@@ -601,7 +623,10 @@ int tty_open_new()
         tty_update_base();
         tty_update_cursor();
       }
-      return i;
+      ttys[i].creater = task;
+      ttys[i].fg_task = task;
+      task->tty_num = i;
+      return 0;
     }
   }
   return -1;
@@ -629,4 +654,14 @@ void tty_set_color(char color)
   if (!tty->base)
     return ;
   tty->cur_color = color;
+}
+
+int tty_set_fg_task(int tty_num, struct task * onwer_task, struct task * target_task)
+{
+  if (tty_num < 0 || tty_num >= MAX_TTY_NUM || !ttys[tty_num].base)
+    return -EINVAL;
+  if (onwer_task != ttys[tty_num].creater)
+    return -EPERM;
+  ttys[tty_num].fg_task = target_task;
+  return 0;
 }

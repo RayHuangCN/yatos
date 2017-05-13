@@ -24,7 +24,6 @@ static struct kcache * bin_cache;
 static struct kcache * section_cache;
 static struct kcache * wait_entry_cache;
 static struct kcache * wait_queue_cache;
-
 static struct bitmap * task_map;
 
 static void task_constr(void *arg)
