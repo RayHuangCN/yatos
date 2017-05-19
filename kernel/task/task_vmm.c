@@ -448,7 +448,7 @@ int task_copy_from_user(void* des,const void* src,unsigned long count)
 int task_copy_to_user(void* des,const void* src,unsigned long count)
 {
   if (task_check_user_space((unsigned long)des, count, 1))
-    return 1;
+    return -EFAULT;
   memcpy(des, src, count);
   return 0;
 }
@@ -507,7 +507,7 @@ int task_copy_str_from_user(void* des,const char* str,unsigned long max_len)
   char * target = (char *)des;
   while (1){
     if (task_check_user_space(page_vaddr, PAGE_SIZE, 0))
-      return 1;
+      return -EFAULT;
     while (max_len && cur < (const char *)(page_vaddr + PAGE_SIZE) && (*target++ = *cur++) != '\0')
       max_len--;
     if (!max_len || *(target - 1) == '\0'){
@@ -516,7 +516,7 @@ int task_copy_str_from_user(void* des,const char* str,unsigned long max_len)
     }
     page_vaddr += PAGE_SIZE;
   }
-  return 1;
+  return -EFAULT;
 }
 
 /*
@@ -533,7 +533,7 @@ int task_copy_pts_from_user(void* des,const char** p,unsigned long max_len)
 
   while (1){
     if (task_check_user_space(page_vaddr, PAGE_SIZE, 0))
-      return 1;
+      return -EFAULT;
 
     while (max_len && cur < (const char **)(page_vaddr + PAGE_SIZE - 3) && (*target++ = *cur++) != NULL)
       max_len --;
@@ -543,5 +543,5 @@ int task_copy_pts_from_user(void* des,const char** p,unsigned long max_len)
     }
     page_vaddr += PAGE_SIZE;
   }
-  return 1;
+  return -EFAULT;
 }
