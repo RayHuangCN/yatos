@@ -1,16 +1,22 @@
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/3/31
- *   Email : rayhuang@126.com
- *   Desc  : irq lowleve c code
- ************************************************/
+/*
+ *  IRQ lowleve operations
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/3/31 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
 
-/********* header files *************************/
 #include <arch/irq.h>
 #include <arch/system.h>
 #include <arch/asm.h>
+
 irq_handler irq_vectors[IRQ_TOTAL_NUM];
-/********* g_function ***************************/
 
 void arch_irq_set_handler(int irq_num, irq_handler handler)
 {
@@ -38,7 +44,6 @@ void arch_irq_hard_init()
   pio_out8(0x01, 0xa1);
 
 }
-
 
 void arch_irq_init(irq_handler default_handler)
 {

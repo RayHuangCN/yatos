@@ -1,9 +1,17 @@
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/3/30
- *   Email : rayhuang@126.com
- *   Desc  : operation of vga screen
- ************************************************/
+/*
+ *  VGA lowleve operations
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/3/30 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #include <arch/asm.h>
 #include <arch/system.h>
 #include <arch/vga.h>

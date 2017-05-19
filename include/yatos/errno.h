@@ -1,12 +1,20 @@
+/*
+ *  Errno
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/5/10 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_ERRNO_H
 #define __YATOS_ERRNO_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/5/10
- *   Email : rayhuang@126.com
- *   Desc  : error numbers
- ************************************************/
 #define	EPERM		 1	/* Operation not permitted */
 #define	ENOENT		 2	/* No such file or directory */
 #define	ESRCH		 3	/* No such process */
@@ -42,7 +50,4 @@
 #define	EDOM		33	/* Math argument out of domain of func */
 #define	ERANGE		34	/* Math result not representable */
 
-
-
-
-#endif
+#endif /* __YATOS_ERRNO_H */

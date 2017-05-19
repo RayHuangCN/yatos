@@ -3,6 +3,7 @@
 #define _PRINTF_H
 #include <printk/string.h>
 #include <printk/stdio.h>
+
 extern int printk(const char *fmt, ...);
 extern void putc(char c);
 

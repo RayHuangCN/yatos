@@ -1,18 +1,25 @@
+/*
+ *  Elf parse
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/12 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_ELF_H
 #define __YATOS_ELF_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/12
- *   Email : rayhuang@126.com
- *   Desc  : elf loader
- ************************************************/
 #include <yatos/list.h>
 #include <yatos/task.h>
 #include <arch/system.h>
 #include <yatos/printk.h>
 #include <yatos/fs.h>
-
 
 /* 32-bit ELF base types. */
 typedef uint32	Elf32_Addr;
@@ -20,8 +27,6 @@ typedef uint16	Elf32_Half;
 typedef uint32	Elf32_Off;
 typedef int	Elf32_Sword;
 typedef uint32	Elf32_Word;
-
-
 
 /* These constants are for the segment types stored in the image headers */
 #define PT_NULL    0
@@ -37,7 +42,6 @@ typedef uint32	Elf32_Word;
 #define PT_LOPROC  0x70000000
 #define PT_HIPROC  0x7fffffff
 #define PT_GNU_EH_FRAME		0x6474e550
-
 #define PT_GNU_STACK	(PT_LOOS + 0x474e551)
 
 /*
@@ -169,8 +173,6 @@ typedef struct elf32_sym{
   Elf32_Half	st_shndx;
 } Elf32_Sym;
 
-
-
 #define EI_NIDENT	16
 
 typedef struct elf32_hdr{
@@ -189,8 +191,6 @@ typedef struct elf32_hdr{
   Elf32_Half	e_shnum;
   Elf32_Half	e_shstrndx;
 } Elf32_Ehdr;
-
-
 
 /* These constants define the permissions on sections in the program
    header, p_flags. */
@@ -347,8 +347,6 @@ typedef struct elf32_note {
   Elf32_Word	n_type;		/* Content type */
 } Elf32_Nhdr;
 
-
-
 struct exec_bin * elf_parse(struct fs_file * file);
 
-#endif
+#endif /* __YATOS_ELF_H */

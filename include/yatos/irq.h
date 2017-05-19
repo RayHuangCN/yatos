@@ -1,24 +1,32 @@
+/*
+ *  Irq management.
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/3/31 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_IRQ_H
 #define __YATOS_IRQ_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/3/31
- *   Email : rayhuang@126.com
- *   Desc  : common irq interface
- ************************************************/
-
-/********* header files *************************/
 #include <arch/irq.h>
-#include <yatos/list.h>
 #include <arch/regs.h>
-/********* g_define *****************************/
+#include <yatos/list.h>
+
+
 struct irq_action
 {
   void *private_data;
   void (*action)(void *private_data, struct pt_regs * context);
   struct list_head list;
 };
+
 struct irq_slot
 {
   struct list_head action_list;
@@ -26,13 +34,9 @@ struct irq_slot
   uint32 count;
 };
 
-/********* g_variable ***************************/
-/********* g_function ***************************/
 void irq_init();
-
 int  irq_regist(int irq_num, struct irq_action * action);
 void irq_unregist(int irq_num, struct irq_action *action);
 void irq_action_init(struct  irq_action * action);
 
-
-#endif
+#endif /* __YATOS_IRQ_H */

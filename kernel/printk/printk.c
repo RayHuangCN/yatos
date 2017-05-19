@@ -8,7 +8,6 @@ extern void putc( char c);
 
 
 static char g_pcOutBuf[OUTBUFSIZE];
-static char g_pcInBuf[INBUFSIZE];
 
 
 int printk(const char *fmt, ...)

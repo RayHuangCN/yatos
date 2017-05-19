@@ -1,9 +1,17 @@
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/5/12
- *   Email : rayhuang@126.com
- *   Desc  : signal
- ************************************************/
+/*
+ *  Signal
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/5/12 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #include <yatos/signal.h>
 #include <yatos/task.h>
 #include <yatos/schedule.h>
@@ -14,8 +22,11 @@
 
 static struct kcache * sig_info_cache;
 
-/**int sigaction(int signum, const struct sigaction *act,
-   struct sigaction *oldact); **/
+/*
+ * This is the system call if sigaction ,not signal!
+ * Change the sigaction of a signal number.
+ * Retrun 0 and fill sys_call_arg2 if successful or return error code if any error.
+ */
 static int sys_call_signal(struct pt_regs * regs)
 {
   int signum = (int)sys_call_arg1(regs);
@@ -42,12 +53,20 @@ static int sys_call_signal(struct pt_regs * regs)
 /* regs is safe ? **/
 static int sig_regs_is_safe(struct pt_regs * regs)
 {
+  if (regs->cs != GDT_USER_CS)
+    return 0;
   return 1;
 }
 
-/** return from signal function
-    any error will kill task O_o
- **/
+/*
+ * This is the system call of sigret.
+ * This system call will be called when a signal handle function finish.
+ * See the detail of sig_do_signal.
+ * Must Return regs->eax! since if we return other value, the value will be
+ * set to regs->eax as the system call return before return to user space,
+ * but this system call is going to restore context of regs that before we doing signal handle.
+ * so, we just return original eax.
+ */
 static int sys_call_sigret(struct pt_regs * regs)
 {
   char * user_sp = (char *)pt_regs_user_stack(regs);
@@ -73,7 +92,11 @@ static int sys_call_sigret(struct pt_regs * regs)
   return regs->eax; //!!!don't return other value
 }
 
-//int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+/*
+ * System call of sigprocmask.
+ * Change current signal mask.
+ * Return 0 if successful or return error code if any error.
+ */
 static int sys_call_sigprocmask(struct pt_regs * regs)
 {
   int how = (int)sys_call_arg1(regs);
@@ -114,6 +137,11 @@ static int sys_call_sigprocmask(struct pt_regs * regs)
   return -EINVAL;
 }
 
+/*
+ * System call of kill.
+ * Send a signal to target task by pid.
+ * Retrun 0 if successful or return error code if any error.
+ */
 static int sys_call_kill(struct pt_regs * regs)
 {
   int pid = (int)sys_call_arg1(regs);
@@ -127,11 +155,13 @@ static int sys_call_kill(struct pt_regs * regs)
   return 0;
 }
 
+/*
+ * Initate signal system.
+ */
 void sig_init()
 {
   sig_info_cache = slab_create_cache(sizeof(struct sig_info), NULL, NULL, "sig_info cache");
-  if (!sig_info_cache)
-    go_die("can not init sig cache");
+  assert(sig_info_cache);
 
   sys_call_regist(SYS_CALL_SIGNAL, sys_call_signal);
   sys_call_regist(SYS_CALL_SIGRET, sys_call_sigret);
@@ -139,6 +169,12 @@ void sig_init()
   sys_call_regist(SYS_CALL_KILL, sys_call_kill);
 }
 
+/*
+ * Send a signal to target task.
+ * This function just set the bit of target signal in sig_pending.
+ *
+ * Note: SIGKILL, SIGSTOP and SIGCONT can not be ignored.
+ */
 void sig_send(struct task * task, int signum)
 {
   struct sigaction * action;
@@ -154,7 +190,11 @@ void sig_send(struct task * task, int signum)
   task_ready_to_run(task);
 }
 
-/*** default action of SIG_DFL signal **/
+/*
+ * The default action of different signals.
+ * SIG_ACTION_EXIT mean the default action is kill task.
+ * Zero means default action is ignore the signal.
+ */
 static int sig_del_actions[NSIG + 1] = {
   [SIGINT] = SIG_ACTION_EXIT,
   [SIGQUIT] = SIG_ACTION_EXIT,
@@ -162,6 +202,13 @@ static int sig_del_actions[NSIG + 1] = {
   [SIGSEGV] = SIG_ACTION_EXIT
 };
 
+/*
+ * This function set up a user stack frame for doing signal handler function.
+ * The frame of user stack like this:
+ * --------> addr decrease ---------->
+ * |        | regs | oldmask | code about call sys_call_sigret | sig number| addr of retcode|
+ * esp_user  page_align                                    |__<_<__<___<___<__|        new esp
+ */
 static void sig_do_signal(int num)
 {
   struct task * task = task_get_cur();
@@ -216,6 +263,12 @@ static void sig_do_signal(int num)
   pt_regs_ret_addr(regs) = (regs_type)sig_info->actions[num].sa_handler;
 }
 
+/*
+ * Check if there is any pending signal in current task.
+ * This function will be called when code stream return to user space.
+ * If any signal is pending, sig_do_signal may be called to set up a user stack frame
+ * to handle signal.
+ */
 void sig_check_signal()
 {
 
@@ -253,18 +306,29 @@ void sig_check_signal()
   }
 }
 
+/*
+ * Create a new signal infor struct to a task.
+ * This function will be called only be task_setup_init since other task
+ * just copy signal infor struct from parent use sig_task_fork.
+ * Return 0 if successful or return -1 if any error.
+ */
 int sig_task_init(struct task * task)
 {
+  int i;
   task->sig_info = slab_alloc_obj(sig_info_cache);
   if (!task->sig_info)
     return -1;
   //mask it self
-  int i;
   for (i = 1; i <= NSIG; i++)
     sigset_add(task->sig_info->actions[i].sa_mask, i);
   return 0;
 }
 
+/*
+ * Copy signal infor struct for a task.
+ * This function will be called once a task be forked.
+ * Return 0 if successful or return -1 if any error.
+ */
 int sig_task_fork(struct task * des, struct task * src)
 {
   sig_task_init(des);
@@ -272,18 +336,29 @@ int sig_task_fork(struct task * des, struct task * src)
   return 0;
 }
 
+/*
+ * Clean a signal infor struct of a task.
+ * This function will be called once a task do execve.
+ * Return 0 if successful return -1 if any error.
+ */
 int sig_task_exec(struct task* task)
 {
   memset(task->sig_info, 0, sizeof(struct sig_info));
   return 0;
 }
 
+/*
+ * Free a signal infor struct of a task.
+ */
 int sig_task_exit(struct task* task)
 {
   slab_free_obj(task->sig_info);
   return 0;
 }
 
+/*
+ * Check if there is any pending signal of a task.
+ */
 int sig_is_pending(struct task * task)
 {
   return task->sig_info->pending & ~task->sig_info->mask;

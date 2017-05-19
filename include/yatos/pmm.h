@@ -1,15 +1,24 @@
+/*
+ *  Physical memory page management.
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/4 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_PMM_H
 #define __YATOS_PMM_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/5
- *   Email : rayhuang@126.com
- *   Desc  : physic memory manager interface
- ************************************************/
 #include <arch/system.h>
 #include <yatos/list.h>
 #include <yatos/mm.h>
+
 #define PMM_MAX_LEVE 32
 #define PMM_TOTAL_PAGE PHY_MM_SIZE / PAGE_SIZE
 
@@ -53,12 +62,8 @@ struct page
 void pmm_init();
 struct page* pmm_alloc_pages(unsigned long size, unsigned long align);
 void pmm_free_pages(struct page * pages, unsigned long size);
-
 unsigned long pmm_page_to_paddr(struct page *);
 struct page * pmm_paddr_to_page(unsigned long address);
 void pmm_show_usable();
 
-
-
-
-#endif
+#endif /* __YATOS_PMM_H */

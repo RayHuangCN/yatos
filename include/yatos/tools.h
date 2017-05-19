@@ -1,16 +1,22 @@
-#ifndef __YATOS_H
-#define __YATOS_H
+/*
+ *  some defination of helpful functions
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/3/30 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/2
- *   Email : rayhuang@126.com
- *   Desc  : tools function or define
- ************************************************/
+#ifndef __YATOS_TOOLS_H
+#define __YATOS_TOOLS_H
 
-/********* header files *************************/
 #include <arch/system.h>
-#include <printk/string.h>
+#include <yatos/printk.h>
 
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #define container_of(ptr, type, member) ({                      \
@@ -19,16 +25,24 @@
 
 #define ALIGN(va, align) ((unsigned long)(va) + (align - 1) / align * align)
 
-void go_die(const char *);
-
-
+/*======================== DEBUG ==============================*/
 #define DEBUG_ON 1
-
 #if (DEBUG_ON == 1)
 #define DEBUG(str, args...) printk(str, ##args)
 #else
 #define DEBUG(str, args...)
 #endif
 
-
+#if (DEBUG_ON == 1)
+#define assert(cond) \
+  if (!(cond)){      \
+    printk("["#cond"] failed");\
+    printk("%s\n", __FILE__);\
+    printk("%d: %s\n", __LINE__, __FUNCTION__);\
+    while(1);\
+  }
+#else
+#define assert(cond)
 #endif
+
+#endif /* __YATOS_TOOLS_H */

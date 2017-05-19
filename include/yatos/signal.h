@@ -1,12 +1,20 @@
+/*
+ *  Signal
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/5/12 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_SIGNAL_H
 #define __YATOS_SIGNAL_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/5/12
- *   Email : rayhuang@126.com
- *   Desc  : signal
- ************************************************/
 #include <yatos/task.h>
 #include <yatos/list.h>
 
@@ -98,4 +106,5 @@ int sig_task_fork(struct task * des, struct task * src);
 int sig_task_exec(struct task * task);
 int sig_task_exit(struct task * task);
 int sig_is_pending(struct task * task);
-#endif
+
+#endif /* __YATOS_SIGNAL_H */

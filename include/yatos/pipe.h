@@ -1,12 +1,20 @@
+/*
+ *  Pipe flie operation
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/5/10 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_PIPE_H
 #define __YATOS_PIPE_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/5/10
- *   Email : rayhuang@126.com
- *   Desc  : PIPE
- ************************************************/
 #include <arch/system.h>
 #include <yatos/task.h>
 
@@ -25,6 +33,4 @@ struct pipe_info
 };
 
 void pipe_init();
-
-
-#endif
+#endif /* __YATOS_PIPE_H */

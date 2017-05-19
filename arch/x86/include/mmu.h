@@ -1,12 +1,20 @@
+/*
+ *  MMU lowleve operations
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/19 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __ARCH_MMU_H
 #define __ARCH_MMU_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/19
- *   Email : rayhuang@126.com
- *   Desc  : mm low level
- ************************************************/
 #include <arch/system.h>
 #include <arch/regs.h>
 
@@ -53,10 +61,10 @@
 #define pet_present(pet_e)\
   (pet_e & 0x1)
 
-
 int mmu_map(unsigned long pdt, unsigned long vaddr, unsigned long paddr, unsigned long rw);
 void mmu_init();
 void mmu_flush();
 uint32 mmu_page_fault_addr();
 void mmu_set_page_table(uint32 addr);
-#endif
+
+#endif /* __ARCH_MMU_H */

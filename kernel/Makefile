@@ -1,5 +1,4 @@
 obj-y += kernel_main.o
-obj-y += tools.o
 obj-y += bitmap.o
 obj-y += printk/
 obj-y += tty/

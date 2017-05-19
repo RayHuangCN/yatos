@@ -1,19 +1,24 @@
-#ifndef __REGS_H
-#define __REGS_H
+/*
+ *  Regs define
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/3/31 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/3/31
- *   Email : rayhuang@126.com
- *   Desc  : regs define
- ************************************************/
-/********* header files *************************/
+#ifndef __ARCH_REGS_H
+#define __ARCH_REGS_H
+
 #include <arch/system.h>
 
-/********* g_define *****************************/
-
 #define sys_call_num(regs) (regs->eax)
-
+#define sys_call_ret(regs) (regs->eax)
 #define sys_call_arg1(regs) (regs->ebx)
 #define sys_call_arg2(regs) (regs->ecx)
 #define sys_call_arg3(regs) (regs->edx)
@@ -72,12 +77,4 @@ struct tss
   uint32 io;
 };
 
-
-
-/********* g_variable ***************************/
-/********* g_function ***************************/
-
-
-
-
-#endif
+#endif /* __ARCH_REGS_H */

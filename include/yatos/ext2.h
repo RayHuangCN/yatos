@@ -1,24 +1,28 @@
+/*
+ *  Ext2 file system operations
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/9 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_EXT2_H
 #define __YATOS_EXT2_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/10
- *   Email : rayhuang@126.com
- *   Desc  : ext2
- ************************************************/
 #include <arch/system.h>
 #include <yatos/list.h>
 #include <yatos/printk.h>
 #include <yatos/fs.h>
 #include <yatos/bitmap.h>
-/* data type for block offset of block group */
+
 typedef int ext2_grpblk_t;
-
-/* data type for filesystem-wide blocks number */
 typedef unsigned long ext2_fsblk_t;
-
-
 typedef uint32 __le32;
 typedef uint16 __le16;
 typedef uint8 __le8;
@@ -36,9 +40,6 @@ typedef uint8 __u8;
 #define EXT2_BOOT_LOADER_INO	 5	/* Boot loader inode */
 #define EXT2_UNDEL_DIR_INO	 6	/* Undelete directory inode */
 
-
-
-
 /*
  * Structure of a blocks group descriptor
  */
@@ -53,7 +54,6 @@ struct ext2_group_desc
 	__le16	bg_pad;
 	__le32	bg_reserved[3];
 };
-
 
 /*
  * Structure of an inode on the disk
@@ -121,7 +121,6 @@ struct ext2_inode {
 #define EXT2_IFCHR 0x2000//character device
 #define EXT2_IFIFO 0x1000//fifo
 
-
 //-- process execution user/group override --
 #define EXT2_ISUID 0x0800//Set process User ID
 #define EXT2_ISGID 0x0400//Set process Group ID
@@ -136,7 +135,6 @@ struct ext2_inode {
 #define EXT2_IROTH 0x0004//others read
 #define EXT2_IWOTH 0x0002//others write
 #define EXT2_IXOTH 0x0001 //others execute
-
 
 /*
  * Mount flags
@@ -162,7 +160,6 @@ struct ext2_inode {
 #else
 #define EXT2_MOUNT_DAX			0
 #endif
-
 
 #define clear_opt(o, opt)		o &= ~EXT2_MOUNT_##opt
 #define set_opt(o, opt)			o |= EXT2_MOUNT_##opt
@@ -271,12 +268,9 @@ struct ext2_super_block {
  */
 #define EXT2_GOOD_OLD_REV	0	/* The good old (original) format */
 #define EXT2_DYNAMIC_REV	1 	/* V2 format w/ dynamic inode sizes */
-
 #define EXT2_CURRENT_REV	EXT2_GOOD_OLD_REV
 #define EXT2_MAX_SUPP_REV	EXT2_DYNAMIC_REV
-
 #define EXT2_GOOD_OLD_INODE_SIZE 128
-
 
 #define EXT2_FEATURE_COMPAT_DIR_PREALLOC	0x0001
 #define EXT2_FEATURE_COMPAT_IMAGIC_INODES	0x0002
@@ -359,7 +353,7 @@ struct ext2_dir_entry_2 {
 enum {
 	EXT2_FT_UNKNOWN		= 0,
 	EXT2_FT_REG_FILE	= 1,
-	EXT2_FT_DIR		= 2,
+	EXT2_FT_DIR		    = 2,
 	EXT2_FT_CHRDEV		= 3,
 	EXT2_FT_BLKDEV		= 4,
 	EXT2_FT_FIFO		= 5,
@@ -369,24 +363,19 @@ enum {
 };
 
 #define MAX_FILE_NAME_LEN 64
+#define FS_START_SECTOR 18432
+#define FS_SEC_SIZE 512
 
 
-
+#define ext2_release_inode(inode) slab_free_obj(inode)
+#define ext2_init_root(root) ext2_fill_inode(root, 2)
 
 void ext2_init();
-
-//sync inode and data
 void ext2_sync_data(struct fs_inode *inode);
-
-//return inode num
-int ext2_find_file(const char *name, struct fs_inode *parent);
+int ext2_find_file(const char *name, struct fs_inode *dir);
 int ext2_create_file(const char *name, struct fs_inode * parent, uint16 mode);
-
-void ext2_init_root(struct fs_inode * root);
 int ext2_fill_buffer(struct fs_inode * inode, struct fs_data_buffer * new_buf);
-void ext2_release_inode(struct ext2_inode * inode);
 uint32 ext2_get_block_size();
-
 int ext2_fill_inode(struct fs_inode *inode, int inode_num);
 int ext2_readdir(struct fs_file * file, struct kdirent *ret);
 int ext2_mkdir(const char * path, uint16 mode);
@@ -394,6 +383,7 @@ int ext2_link(const char * oldpath, const char * newpath);
 int ext2_rmdir(const char * path);
 int ext2_unlink(const char * path);
 int ext2_truncate(struct fs_inode * inode, off_t length);
-void ext2_free_inode(int inode_num);
+int ext2_free_inode(int inode_num);
+void ext2_sync_system();
 
-#endif
+#endif /* __YATOS_EXT2_H */

@@ -1,12 +1,20 @@
+/*
+ *  Task life cycle management
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/4 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_TASK_H
 #define __YATOS_TASK_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/4
- *   Email : rayhuang@126.com
- *   Desc  : task manager interface
- ************************************************/
 #include <yatos/elf.h>
 #include <yatos/printk.h>
 #include <yatos/list.h>
@@ -18,12 +26,10 @@
 
 #define KERNEL_STACK_SIZE (PAGE_SIZE<<1)
 
-
 #define SECTION_WRITE 1
 #define SECTION_ALLOC 2
 #define SECTION_EXEC 4
 #define SECTION_NOBITS 8
-
 
 #define MAX_OPEN_FD 64
 #define MAX_PID_NUM 256
@@ -34,6 +40,20 @@
 #define TASK_USER_STACK_LEN   0x40000000
 #define TASK_USER_HEAP_START (0xc0000000 - 0x80000000)
 #define TASK_USER_HEAP_DEAULT_LEN 0
+
+#define task_get_bin(bin) (bin->count++)
+#define task_put_bin(bin)  \
+  do{\
+    bin->count--;\
+    if (!bin->count)\
+      slab_free_obj(bin);\
+  } while (0)
+
+#define task_init_wait_queue(queue) INIT_LIST_HEAD(&(queue->entry_list))
+#define task_free_wait_queue(queue) slab_free_obj(queue)
+#define task_free_wait_entry(entry) slab_free_obj(entry)
+#define task_get_pt_regs(task) (struct pt_regs*)(task->kernel_stack - sizeof(struct pt_regs))
+
 struct section
 {
   uint32 start_vaddr;
@@ -43,7 +63,6 @@ struct section
   struct list_head list_entry;
 };
 
-
 struct exec_bin
 {
   uint32 entry_addr;
@@ -51,7 +70,6 @@ struct exec_bin
   unsigned long count;
   struct list_head section_list;
 };
-
 
 struct task_wait_entry
 {
@@ -109,24 +127,12 @@ struct task
   int tty_num;
 };
 
-
 void task_init();
-
 void task_setup_init(const char * path);
-
 struct exec_bin * task_new_exec_bin();
 struct section * task_new_section();
-void task_put_bin(struct exec_bin * bin);
-void task_get_bin(struct exec_bin * bin);
-
-
 struct task_wait_queue * task_new_wait_queue();
 struct task_wait_entry * task_new_wait_entry();
-void task_free_wait_queue(struct task_wait_queue *queue);
-void task_free_wait_entry(struct task_wait_entry * entry);
-
-void task_init_wait_queue(struct task_wait_queue * queue);
-
 void task_wait_on(struct task_wait_entry * entry, struct task_wait_queue * queue);
 void task_notify_one(struct task_wait_queue * queue);
 void task_notify_all(struct task_wait_queue * queue);
@@ -135,6 +141,5 @@ void task_leave_from_wq(struct task_wait_entry * wait_entry);
 void task_segment_fault(struct task * task);
 void task_exit(int status);
 void task_gener_wake_up(struct task * task, void * private);
-struct pt_regs * task_get_pt_regs(struct task * task);
 
 #endif

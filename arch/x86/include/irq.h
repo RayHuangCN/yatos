@@ -1,12 +1,20 @@
-#ifndef __IRQ_H
-#define __IRQ_H
+/*
+ *  IRQ lowleve operations
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/3/31 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/3/31
- *   Email : rayhuang@126.com
- *   Desc  : irq lowleve interface
- ************************************************/
+#ifndef __ARCH_IRQ_H
+#define __ARCH_IRQ_H
+
 #include <arch/regs.h>
 
 #define IRQ_PAGE_FAULT 14
@@ -33,16 +41,13 @@
   }while(0)\
 
 typedef void (* irq_handler)(struct pt_regs);
-/********* g_function ***************************/
+
 void arch_irq_enable(void);
 void arch_irq_disable(void);
-
 void arch_irq_init(irq_handler default_handler);
 void arch_irq_set_handler(int irq_num, irq_handler handler);
-
 void arch_irq_ack();
-
 uint32 arch_irq_save();
 void arch_irq_recover(uint32 saved);
 
-#endif
+#endif /* __ARCH_IRQ_H */

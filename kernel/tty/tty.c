@@ -1,11 +1,17 @@
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/3/31
- *   Email : rayhuang@126.com
- *   Desc  : tty control
- ************************************************/
+/*
+ *  Virtual tty system.
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/3/31 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
 
-/********* header files *************************/
 #include <yatos/tty.h>
 #include <arch/vga.h>
 #include <yatos/task.h>
@@ -14,6 +20,7 @@
 #include <yatos/irq.h>
 #include <yatos/errno.h>
 #include <yatos/signal.h>
+
 static uint32 keymap[NR_SCAN_CODES * MAP_COLS] = {
 
 /* scan-code			!Shift		Shift		E0 XX	*/
@@ -148,13 +155,6 @@ static uint32 keymap[NR_SCAN_CODES * MAP_COLS] = {
 /* 0x7F - ???		*/	0,		0,		0
 };
 
-
-/*
-	回车键:	把光标移到第一列
-	换行键:	把光标前进到下一行
-*/
-
-
 /*====================================================================================*
 				Appendix: Scan code set 1
  *====================================================================================*
@@ -251,15 +251,27 @@ static int shift_r;
 static int capslock;
 static int tab_wd = 4;
 
+/*
+ * This function just copy the data of start from new base to VGA RAM.
+ * So, this function is kind of slow.
+ */
 static void tty_update_base()
 {
   vga_set_base(cur_tty->base + cur_tty->start_row * VGA_COL_NUM * VGA_CHAR_SIZE);
 }
+
+/*
+ * Set new cursor of VGA
+ * just set register of VGA, so this function is very fast.
+ */
 static void tty_update_cursor()
 {
   vga_set_cursor(cur_tty->cur_col, cur_tty->cur_row - cur_tty->start_row);
 }
 
+/*
+ * Change current tty.
+ */
 static void tty_change_to(int tty_num)
 {
 
@@ -272,6 +284,9 @@ static void tty_change_to(int tty_num)
   tty_update_cursor();
 }
 
+/*
+ * Clean a area of vitrual tty RAM.
+ */
 static void tty_do_clean(char *buffer, int count, char color)
 {
   unsigned int i;
@@ -281,6 +296,12 @@ static void tty_do_clean(char *buffer, int count, char color)
   }
 }
 
+/*
+ * This is the irq_handler of keyboard.
+ * This function may wake up the task which is waitting for input.
+ * This function will deal specail key such ctrl, alt, and this function may
+ * also do something like send signal to task or change current tty.
+ */
 void kb_irq_handler(void *private, struct pt_regs * regs)
 {
   uint8 code = read_keyboard();
@@ -290,6 +311,7 @@ void kb_irq_handler(void *private, struct pt_regs * regs)
   struct task_wait_queue * wait_queue;
   int col;
   int tty_num;
+
   if (!cur_tty || !cur_tty->wait_queue)
     return ;
   //deal code
@@ -400,12 +422,17 @@ void kb_irq_handler(void *private, struct pt_regs * regs)
         wait_entry->private = (void*)-1; //EOF
       }
       else
-        wait_entry->private = key[col];
+        wait_entry->private = (void*)key[col];
       task_notify_one(wait_queue);
     }
   }
 }
 
+/*
+ * Put a char to "tty", this char may be set to "tty" RAM or may change current cursor of "tty".
+ * This function can also do something like auto scorll.
+ * If tty==current tty, changes may show on VGA directly.
+ */
 static void tty_putc(char c, struct tty * tty)
 {
   char *base;
@@ -471,16 +498,29 @@ static void tty_putc(char c, struct tty * tty)
     tty_update_cursor();
 }
 
+/*
+ * This function try to read keys from keyboard, this function will block current task untill
+ * buffer is full or read a '\n' from keyboard or a signal had been send to the task.
+ * Keyborad irq handler will wake up the task if any readable(not ctrl,alt...) key irq come.
+ * Return read count if successful or return error code if any error.
+ *
+ * Note: only tty fg_task can read.
+ */
 int tty_read_input(char * buffer, unsigned long len)
 {
   struct task * task = task_get_cur();
   int tty_num = task->tty_num;
+  struct tty * tty;
+  struct task_wait_queue * wait_queue;
+  struct task_wait_entry entry;
+  unsigned long i;
+  int input;
 
   if (tty_num < 0 || tty_num >= MAX_TTY_NUM)
     return -EINVAL;
 
-  struct tty * tty = ttys + tty_num;
-  struct task_wait_queue * wait_queue = tty->wait_queue;
+  tty = ttys + tty_num;
+  wait_queue = tty->wait_queue;
   if (!wait_queue)
     return -ENOTTY;
 
@@ -494,12 +534,10 @@ int tty_read_input(char * buffer, unsigned long len)
   if (!list_empty(&(wait_queue->entry_list)))
     return -EBUSY;
 
-  struct task_wait_entry entry;
   entry.task = task;
   entry.wake_up = task_gener_wake_up;
   task_wait_on(&entry, wait_queue);
 
-  unsigned long i;
   for (i = 0 ;i < len;){
     task_block(task);
     task_schedule();
@@ -509,7 +547,7 @@ int tty_read_input(char * buffer, unsigned long len)
       return -EINTR;
     }
 
-    int input = (int)entry.private;
+    input = (int)entry.private;
     if (input == -1)
       break;
     else if (input == '\t'){
@@ -536,12 +574,12 @@ int tty_read_input(char * buffer, unsigned long len)
 
   }
   task_leave_from_wq(&entry);
-
   return i;
 }
 
-
-
+/*
+ * Set the cursor of current task's tty to be "x", "y".
+ */
 void tty_set_cursor(int x, int y)
 {
   int tty_num = task_get_cur()->tty_num;
@@ -558,7 +596,9 @@ void tty_set_cursor(int x, int y)
     vga_set_cursor(x, y);
 }
 
-
+/*
+ * Get the cursor of curent task's tty.
+ */
 void tty_get_cursor(int *x, int *y)
 {
   int tty_num = task_get_cur()->tty_num;
@@ -572,7 +612,10 @@ void tty_get_cursor(int *x, int *y)
   *y = tty->cur_row - tty->start_row;
 }
 
-
+/*
+ * Clear the screen of current task's tty.
+ * Inclues set all char to ' ' and set cursor to (0,0) and set start_row = 0;
+ */
 void tty_clear()
 {
   int tty_num = task_get_cur()->tty_num;
@@ -594,7 +637,9 @@ void tty_clear()
   }
 }
 
-
+/*
+ * Initate virtual tty system.
+ */
 void tty_init()
 {
   irq_action_init(&kb_irq_action);
@@ -602,6 +647,15 @@ void tty_init()
   irq_regist(0x21, &kb_irq_action);
 }
 
+/*
+ * Try to open a new tty.
+ * Only MAX_TTY_NUM tty can be opened.
+ * This function should only be called by the shell.
+ * Opened tty will be inherited to child task.
+ * Return tty number if open successful or return -1 if no tty any more.
+ *
+ * Note: opened tty can not be closed in this version.
+ */
 int tty_open_new(struct task * task)
 {
   int i;
@@ -632,6 +686,9 @@ int tty_open_new(struct task * task)
   return -1;
 }
 
+/*
+ * Put a char to current tty.
+ */
 void putc(char c)
 {
   int tty_num = task_get_cur()->tty_num;
@@ -644,7 +701,10 @@ void putc(char c)
   tty_putc(c, tty);
 }
 
-
+/*
+ * Set default color of current task's tty.
+ * The default color will be effect untill the next tty_set_color be called.
+ */
 void tty_set_color(char color)
 {
   int tty_num = task_get_cur()->tty_num;
@@ -656,6 +716,11 @@ void tty_set_color(char color)
   tty->cur_color = color;
 }
 
+/*
+ * Set a task to be the fg_task of a tty.
+ * Only fg_task can read from keyboard.
+ * Return 0 if successful or return error code if any error.
+ */
 int tty_set_fg_task(int tty_num, struct task * onwer_task, struct task * target_task)
 {
   if (tty_num < 0 || tty_num >= MAX_TTY_NUM || !ttys[tty_num].base)

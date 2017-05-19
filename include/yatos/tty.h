@@ -1,14 +1,19 @@
-#ifndef __TTY_H
-#define __TTY_H
+/*
+ *  Virtual tty system.
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/3/31 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+#ifndef __YATOS_TTY_H
+#define __YATOS_TTY_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/3/31
- *   Email : rayhuang@126.com
- *   Desc  : console control
- ************************************************/
-
-/********* g_function ***************************/
 #include <yatos/task.h>
 #include <arch/vga.h>
 
@@ -151,4 +156,4 @@ int tty_open_new(struct task * task);
 void tty_set_color(char color);
 int tty_set_fg_task(int tty_num, struct task * onwer_task, struct task * target_task);
 
-#endif
+#endif /* __YATOS_H */

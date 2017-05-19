@@ -1,62 +1,64 @@
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/13
- *   Email : rayhuang@126.com
- *   Desc  : bitmap
- ************************************************/
+/*
+ *  Bitmap
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/13 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
 #include <yatos/bitmap.h>
 #include <yatos/mm.h>
 #include <yatos/tools.h>
 #include <yatos/printk.h>
 
-
+/*
+ * Create a new bitmap with "count" bits.
+ */
 struct bitmap * bitmap_create(uint32 count)
 {
   uint32 allc_size = (count + 7) / 8 + 4;
   struct bitmap  * bm = mm_kmalloc(allc_size);
-  if (!bm)
+
+  if (!bm){
+    DEBUG("can not create bitmap!");
     return NULL;
+  }
 
   memset(bm, 0, allc_size);
   bm->count = count;
   return bm;
 }
 
-
-void bitmap_destory(struct bitmap * bm)
-{
-  mm_kfree(bm);
-}
-
-
+/*
+ * Clone a new bitmap from "from".
+ */
 struct bitmap *  bitmap_clone(struct bitmap * from)
 {
-  uint32 alloc_size = (from->count + 7) / 8 + 4;
-  struct bitmap * new = mm_kmalloc(alloc_size);
+  unsigned long alloc_size = (from->count + 7) / 8 + sizeof(struct bitmap);
+  struct bitmap * new = bitmap_create(from->count);
+
+  if (!new){
+    DEBUG("can not get new bitmap!");
+    return NULL;
+  }
   memcpy(new, from, alloc_size);
   return new;
 }
 
-
-void bitmap_copy(struct bitmap * des, struct bitmap * src)
-{
-  if (des->count != src->count){
-    printk("bitmap_copy unequ count!\n");
-    return ;
-  }
-  uint32 alloc_size = (des->count + 7) / 8  + 4;
-  memcpy(des, src, alloc_size);
-}
-
-int bitmap_count(struct bitmap * bm)
-{
-  return bm->count;
-}
-
+/*
+ * Alloc a free position from "bi".
+ * If there is no free position, return -1.
+ */
 int bitmap_alloc(struct bitmap * bi)
 {
   uint32 count = bi->count;
   int i, j;
+
   for (i = 0; i < (count + 7) / 8; i++){
     if (bi->map[i] != 0xff){
       for (j = 0 ; j < 8; j++)
@@ -67,32 +69,4 @@ int bitmap_alloc(struct bitmap * bi)
     }
   }
   return -1;
-}
-
-
-void bitmap_free(struct bitmap * bi, int num)
-{
-  if (num >= bi->count)
-    return ;
-  bi->map[num / 8] &=  ~(1U << (num % 8));
-}
-
-void bitmap_set(struct bitmap* bm,int num)
-{
-  if (num >= bm->count)
-    return ;
-  bm->map[num / 8] |= 1 << (num % 8);
-}
-void bitmap_clr(struct bitmap * bm, int num)
-{
-  if (num >= bm->count)
-    return ;
-  bm->map[num / 8] &= ~(1U << (num % 8));
-}
-
-int bitmap_check(struct bitmap* bm,int num)
-{
-  if (num >= bm->count)
-    return 0;
-  return (bm->map[num  / 8] & (1 << (num % 8)));
 }

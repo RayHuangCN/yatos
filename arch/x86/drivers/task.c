@@ -1,12 +1,21 @@
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/19
- *   Email : rayhuang@126.com
- *   Desc  : task low lelve
- ************************************************/
+/*
+ *  Task lowleve operations
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/19 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #include <arch/system.h>
 #include <arch/task.h>
 #include <arch/regs.h>
+
 static struct tss task_tss = {
   .ss0 = GDT_KERNEL_DS,
 };
@@ -37,10 +46,11 @@ void task_arch_init_run_context(struct task * task, unsigned long ret_val)
 {
   // not ss esp ,so we should sub 8
   struct pt_regs * regs = (struct pt_regs *)(task->kernel_stack - sizeof(*regs));
+  struct task_sche_frame * frame;
   regs->eax = ret_val;
 
   //now we need create a frame for first schedule
-  struct task_sche_frame * frame = (struct task_sche_frame *)(task->kernel_stack - sizeof(*regs) - sizeof(*frame));
+  frame = (struct task_sche_frame *)(task->kernel_stack - sizeof(*regs) - sizeof(*frame));
   frame->eip = (unsigned long)irq_common_ret;//directly goto irq_common_ret;
   frame->eflags = 0x92;
   task->cur_stack = (unsigned long)frame;

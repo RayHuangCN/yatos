@@ -1,14 +1,8 @@
 #ifndef __DATA_STRCT_LIST_H
 #define __DATA_STRCT_LIST_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/1
- *   Email : rayhuang@126.com
- *   Desc  : Simple doubly linked list implementation.
- ************************************************/
 #include <yatos/tools.h>
-/********* g_define *****************************/
+
 struct list_head
 {
   struct list_head *prev;

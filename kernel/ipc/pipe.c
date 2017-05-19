@@ -1,9 +1,17 @@
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/5/10
- *   Email : rayhuang@126.com
- *   Desc  : pipe
- ************************************************/
+/*
+ *  Pipe flie operation
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/5/10 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #include <yatos/pipe.h>
 #include <arch/regs.h>
 #include <yatos/sys_call.h>
@@ -14,6 +22,13 @@
 #include <yatos/bitmap.h>
 #include <yatos/errno.h>
 
+/*
+ * Read function of pipe inode.
+ * Read data from pipe data buffer, if there is no data in data buffer, this function
+ * will block current task or return error code if there is no any writter.
+ * This function will wake up any wirtter which is waitting for data buffer free space.
+ * Return read count if successful or return error code if any error.
+ */
 static int pipe_read(struct fs_file * file, char * buffer, unsigned long count)
 {
   struct pipe_info * pipe_info;
@@ -64,8 +79,13 @@ static int pipe_read(struct fs_file * file, char * buffer, unsigned long count)
   return 0;
 }
 
-
-
+/*
+ * Write function of pipe inode.
+ * Write data to pipe data buffer, if there is no free space in data buffer, this function
+ * will block current task or return error code if there is no any reader.
+ * This function will wake up any reader which is waitting for data.
+ * Return write count if successful or return error code if any error.
+ */
 static int pipe_write(struct fs_file * file, char *buffer, unsigned long count)
 {
   struct pipe_info * pipe_info;
@@ -117,6 +137,14 @@ static int pipe_write(struct fs_file * file, char *buffer, unsigned long count)
   }
   return 0;
 }
+
+/*
+ * Relase function of pipe inode.
+ * Decrease writer count or reader count, if there is no writer and no reader,
+ * this function will free all memory of this pipe.
+ * This function may wake up task which is waitting for data or waitting for free space of data
+ * buffer.
+ */
 static void pipe_release(struct fs_inode * inode)
 {
   struct pipe_info * pipe_info = inode->inode_data;
@@ -138,6 +166,9 @@ static void pipe_release(struct fs_inode * inode)
   }
 }
 
+/*
+ * Pipe inode action.
+ */
 struct fs_inode_oper pipe_reader_action = {
   .read = pipe_read,
   .release = pipe_release
@@ -147,6 +178,13 @@ struct fs_inode_oper pipe_writer_action = {
   .release = pipe_release
 };
 
+/*
+ * System call of pipe.
+ * Setup a new pipe.
+ * A pipe inclues a read file which is associated to fd[0], and a write file
+ * which is associated to fd[1].
+ * Return 0 and fill sys_call_arg1 if successful or return error code if any error.
+ */
 static int sys_call_pipe(struct pt_regs * regs)
 {
   int *fd = (int*)sys_call_arg1(regs);
@@ -171,7 +209,7 @@ static int sys_call_pipe(struct pt_regs * regs)
     goto err;
   }
 
-  pipe_info = (struct pipe_info *)mm_kmalloc(sizeof(*pipe_info));
+  pipe_info = mm_kmalloc(sizeof(*pipe_info));
   if (!pipe_info){
     ret = -ENOMEM;
     goto err;
@@ -210,7 +248,7 @@ static int sys_call_pipe(struct pt_regs * regs)
   task->files[kfd[1]] = file[1];
 
   if (task_copy_to_user(fd, kfd, sizeof(kfd))){
-    ret = -EINVAL;
+    ret = -EFAULT;
     goto err;
   }
   return 0;

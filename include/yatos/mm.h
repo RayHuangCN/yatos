@@ -1,12 +1,20 @@
+/*
+ *  RAM memory management
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/4 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_MM_H
 #define __YATOS_MM_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/4
- *   Email : rayhuang@126.com
- *   Desc  : memory interface and defines
- ************************************************/
 #include <arch/system.h>
 #include <yatos/list.h>
 #include <yatos/pmm.h>
@@ -15,20 +23,13 @@
 #define MAX_KMALLOC_SLAB_LEVE 11
 #define MIN_KMALLOC_SLAB_LEVE 4
 
+#define paddr_to_vaddr(paddr) (KERNEL_VMM_START + ((paddr) - PHY_MM_START))
+#define paddr_to_page(paddr) pmm_paddr_to_page(paddr)
+#define vaddr_to_paddr(vaddr) (PHY_MM_START + ((vaddr) - KERNEL_VMM_START))
+#define vaddr_to_page(vaddr) pmm_paddr_to_page(vaddr_to_paddr(vaddr))
+
 void mm_init();
-
-
-unsigned long paddr_to_vaddr(unsigned long paddr);
-unsigned long vaddr_to_paddr(unsigned long vaddr);
-struct page * vaddr_to_page(unsigned long vaddr);
-
 void * mm_kmalloc(unsigned long size);
 void mm_kfree(void *addr);
 
-
-void * mm_vmalloc(unsigned long size);
-void mm_vfree(void  *addre);
-
-
-
-#endif
+#endif /* __YATOS_MM_H */

@@ -1,15 +1,20 @@
-#ifndef __SYSTEM_H
-#define __SYSTEM_H
+/*
+ *  System type define and memory map define
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/3/30 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
 
-/*************************************************
-*   Author: Ray Huang
-*   Date  : 2017/3/30
-*   Email : rayhuang@126.com
-*   Desc  : some define of system config
-************************************************/
+#ifndef __ARCH_SYSTEM_H
+#define __ARCH_SYSTEM_H
 
-/********* g_define *****************************/
-//========= type define ========================
 typedef int int32;
 typedef short int16;
 typedef char int8;
@@ -20,8 +25,6 @@ typedef unsigned char bool;
 typedef unsigned int size_t;
 #define  NULL (void *)0
 
-
-
 //========= MM MAP ================================/
 #define PHY_MM_START 0x100000
 #define PHY_MM_SIZE  (1024 * 1024 *124)
@@ -31,7 +34,6 @@ typedef unsigned int size_t;
 
 #define PAGE_ALIGN(addr)  ((unsigned long)(addr) & ~0xfff)
 #define PAGE_OFFSET(addr) ((unsigned long)(addr) & 0xfff)
-
 
 #define KERNEL_VMM_START 0xc0000000
 #define KERNEL_SIZE 0x400000
@@ -54,10 +56,8 @@ typedef unsigned int size_t;
 
 #define FREE_PMM_START (FREE_VMM_START - KERNEL_VMM_START + PHY_MM_START)
 
-
 //total num of free page
 #define FREE_PAGE_TOTAL ((PHY_MM_START +  PHY_MM_SIZE - FREE_PMM_START) / PAGE_SIZE)
-
 
 //===================   GDT   ========================
 #define GDT_BASE (KERNEL_END - PAGE_SIZE)
@@ -68,13 +68,6 @@ typedef unsigned int size_t;
 #define GDT_TSS 0x30
 #define GDT_TSS_BASE (GDT_BASE + 48)
 
-
 #define IDT_BASE (GDT_BASE - PAGE_SIZE)
 
-
-
-
-
-
-
-#endif
+#endif /* __ARCH_SYSTEM_H */

@@ -1,13 +1,35 @@
+/*
+ *  Bitmap interface
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/13 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
+
 #ifndef __YATOS_BITMAP_H
 #define __YATOS_BITMAP_H
 
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/13
- *   Email : rayhuang@126.com
- *   Desc  : bitmap manage
- ************************************************/
 #include <arch/system.h>
+#include <yatos/mm.h>
+#include <yatos/tools.h>
+
+#define bitmap_count(bm) (bm->count)
+#define bitmap_destory(bm) mm_kfree(bm);
+#define bitmap_free(bm, num) (bm->map[num / 8] &=  ~(1U << (num % 8)))
+#define bitmap_set(bm, num) (bm->map[num / 8] |= 1 << (num % 8))
+#define bitmap_clr(bm, num) (bm->map[num / 8] &= ~(1U << (num % 8)))
+#define bitmap_check(bm, num)  (bm->map[num  / 8] & (1 << (num % 8)))
+#define bitmap_copy(des, src) \
+  do{\
+    assert(des->count == src->count);\
+    memcpy(des, src, (des->count + 7) / 8 + sizeof(struct bitmap));\
+  }while (0)
 
 
 struct bitmap
@@ -17,17 +39,7 @@ struct bitmap
 };
 
 struct bitmap * bitmap_create(uint32 count);
-void bitmap_destory(struct bitmap * bm);
-
 struct bitmap * bitmap_clone(struct bitmap *  from);
-void bitmap_copy(struct bitmap * des, struct bitmap *  src);
-
 int bitmap_alloc(struct bitmap *  bm);
-void bitmap_free(struct bitmap * bi, int num);
-int bitmap_count(struct bitmap * bm);
 
-void bitmap_set(struct bitmap * bm, int num);
-void bitmap_clr(struct bitmap * bm, int num);
-int bitmap_check(struct bitmap * bm, int num);
-
-#endif
+#endif /* __YATOS_BITMAP_H */

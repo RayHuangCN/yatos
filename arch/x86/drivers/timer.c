@@ -1,16 +1,20 @@
-/*************************************************
- *   Author: Ray Huang
- *   Date  : 2017/4/2
- *   Email : rayhuang@126.com
- *   Desc  : lowleve timer setup
- ************************************************/
+/*
+ *  Timer lowleve operations
+ *
+ *  Copyright (C) 2017 ese@ccnt.zju
+ *
+ *  ---------------------------------------------------
+ *  Started at 2017/4/2 by Ray
+ *
+ *  ---------------------------------------------------
+ *
+ *  This file is subject to the terms and conditions of the GNU General Public
+ *  License.
+ */
 
-/********* header files *************************/
 #include <arch/asm.h>
 #include <arch/system.h>
-/********* g_define *****************************/
-/********* g_variable ***************************/
-/********* g_function ***************************/
+
 //init 8253
 void arch_timer_init(unsigned long hz)
 {
